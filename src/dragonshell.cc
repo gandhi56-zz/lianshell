@@ -1,5 +1,5 @@
 
-#define beta
+//#define beta
 #define SHELL "dragonshell: "
 
 #include <vector>
@@ -13,11 +13,31 @@
 	#include <dirent.h>	// for "ls" command, not required by assignment
 #endif
 
-/*
 void display_splash(){
-	std::cout << "______________\n,===:'.,\n`-._\n`:.`---.__\n`-._\n`:.\n`--.\n`.\n\.\n`.\n`.\n(,,(,\n\.\n`.\n____,-`.,\n(,'\n`/\n\.\n,--.___`.'\n, ,' ,--. `,\n\.;'\n`\n`{D, {\n\ :\n\;\nV,,'\n/ /\n//\nj;;\n/ ,' ,-//.\n,---.\n,\n\;'\n/ ,' / _ \ / _ \\n,'/\n\\n`' / \ `' / \ `.' /\n`.___,'\n`.__,'\n`.__,'\n__\n__\n_\n_\n___\n___ _\n_ _\n\ \\n/ /__| |__ ___ _ __ ___ | |_ ___ |\n\ _ _ __ _ __ _ ___ _ _\n/ __| |_ ___| | |\n\ \/\/ / -_) / _/ _ \ ' \/ -_) | _/ _ \ | |) | '_/ _` / _` / _ \ ' \ \__ \ ' \/ -_) | |\n\_/\_/\___|_\__\___/_|_|_\___| \__\___/ |___/|_| \__,_\__, \___/_||_| |___/_||_\___|_|_|\n|___/" << std::endl;
+	std::cout<< "                                   ______________                                           					"<<std::endl;
+	std::cout<< "                             ,===:'.,            `-._                                       					"<<std::endl;
+	std::cout<< "                                  `:.`---.__         `-._                                   					"<<std::endl;
+	std::cout<< "                                    `:.     `--.         `.                                 					"<<std::endl;
+	std::cout<< "                                      \\.        `.         `.                               					"<<std::endl;
+	std::cout<< "                              (,,(,    \\.         `.   ____,-`.,                            					"<<std::endl;
+	std::cout<< "                           (,'     `/   \\.   ,--.___`.'                                     					"<<std::endl;
+	std::cout<< "                       ,  ,'  ,--.  `,   \\.;'         `                                     					"<<std::endl;
+	std::cout<< "                        `{D, {    \\  :    \\;                                                					"<<std::endl;
+	std::cout<< "                          V,,'    /  /    //                                                					"<<std::endl;
+	std::cout<< "                          j;;    /  ,' ,-//.    ,---.      ,                                					"<<std::endl;
+	std::cout<< "                          \\;'   /  ,' /  _  \\  /  _  \\   ,'/                                				"<<std::endl;
+	std::cout<< "                                \\   `'  / \\  `'  / \\  `.' /                                 				"<<std::endl;
+	std::cout<< "                                 `.___,'   `.__,'   `.__,'                                  					"<<std::endl;
+	std::cout<< "                                                                                            					"<<std::endl;
+	std::cout<< "__      __   _                    _         ___                           ___ _        _ _ 					"<<std::endl;
+	std::cout<< "\\ \\    / /__| |__ ___ _ __  ___  | |_ ___  |   \\ _ _ __ _ __ _ ___ _ _   / __| |_  ___| | | 				"<<std::endl;
+	std::cout<< " \\ \\/\\/ / -_) / _/ _ \\ '  \\/ -_) |  _/ _ \\ | |) | '_/ _` / _` / _ \\ ' \\  \\__ \\ ' \\/ -_) | | 		"<<std::endl;
+	std::cout<< "  \\_/\\_/\\___|_\\__\\___/_|_|_\\___|  \\__\\___/ |___/|_| \\__,_\\__, \\___/_||_| |___/_||_\\___|_|_|		"<<std::endl;
+	std::cout<< "                                                         |___/													"<<std::endl;
+	std::cout<< "																												"<<std::endl;
+	std::cout<< "																												"<<std::endl;
+	std::cout<< "																												"<<std::endl;
 }
-*/
 
 
 /**
@@ -27,6 +47,7 @@ void display_splash(){
  * @param delim - The string containing delimiter character(s)
  * @return std::vector<std::string> - The list of tokenized strings. Can be empty
  */
+
 std::vector<std::string> tokenize(const std::string &str, const char *delim) {
 	char* cstr = new char[str.size() + 1];
 	std::strcpy(cstr, str.c_str());
@@ -49,7 +70,7 @@ int main(int argc, char **argv) {
 	// tokenize the input, run the command(s), and print the result
 	// do this in a loop
 	
-	//display_splash(); TODO
+	display_splash();
 
 	std::string cmd;
 	std::vector<std::string> tokens;
@@ -76,8 +97,7 @@ int main(int argc, char **argv) {
 			}
 		}
 		else if (tokens[0] == "pwd"){
-			char* buff = get_current_dir_name();
-			std::cout << buff << std::endl;
+			std::cout << get_current_dir_name() << std::endl;
 		}
 
 #ifdef beta
@@ -93,9 +113,17 @@ int main(int argc, char **argv) {
 				closedir(dir);
 			}
 		}
-
 #endif
 		else if (tokens[0] == "$PATH"){
+			// TODO
+			char buff[40];
+			if (getcwd(buff, sizeof(buff)) == nullptr){
+				std::cout << SHELL << "Error occured when printing $PATH" << std::endl;
+			}
+			else{
+				std::cout << buff << std::endl;
+			}
+
 		}
 		else if (tokens[0] == "a2path"){
 			// TODO
@@ -104,6 +132,9 @@ int main(int argc, char **argv) {
 			std::cout << "Need to ensure all child processes have been terminated. ";
 			std::cout << "Besides, thanks for using the dragonshell." << std::endl;
 			break;
+		}
+		else{
+			//execve(tokens[0], "", "");
 		}
 	}
 
