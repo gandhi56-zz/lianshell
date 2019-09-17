@@ -1,6 +1,9 @@
 
-#define beta
-#define SHELL "dragonshell: "
+//#define beta
+#define SHELL 			"dragonshell: "
+#define MAX_LEN			120
+#define MAX_JOBS		20
+#define NUM_ARGS		20
 
 #include <vector>
 #include <string>
@@ -75,13 +78,66 @@ std::vector<std::string> tokenize(const std::string &str, const char *delim) {
  * @param argv - A char* array that will contain the tokenized strings
  * Make sure that you allocate enough space for the array.
  */
-void tokenize_c(char* str, const char* delim, char ** argv) {
+int tokenize_c(char* str, const char* delim, char ** argv) {
 	char* token;
 	token = strtok(str, delim);
+	int count = 0;
 	for(size_t i = 0; token != NULL; ++i){
 		argv[i] = token;
 		token = strtok(NULL, delim);
+		count++;
 	}
+	return count;
+}
+
+void run_cmd(char* arg){
+	char* buff[NUM_ARGS];
+	int len = tokenize_c(arg, "\n", buff);
+	len = tokenize_c(arg, " ", buff);
+
+	// expected nullptr by system calls
+	buff[len] = nullptr;
+
+	if (strcmp(buff[0], "pwd") == 0){
+		printf("%s\n", get_current_dir_name());
+	}
+	else if (strcmp(buff[0], "cd") == 0){
+		if (len >= 2){
+			if (chdir(buff[1]) == -1){
+				printf("%s No such file or directory\n", SHELL);
+			}
+		}
+		else{
+			printf("%s expected argument to \"cd\"\n", SHELL);
+		}
+	}
+	else if (strcmp(buff[0], "$PATH") == 0){
+		// TODO
+	}
+	else if (strcmp(buff[0], "a2path") == 0){
+		// TODO
+	}
+	else if (strcmp(buff[0], "exit") == 0){
+		printf("Need to ensure all child processes have been terminated. ");
+		printf("Besides, thanks for using the dragonshell.\n");
+		exit(EXIT_SUCCESS);
+	}
+	else if (len){
+		pid_t pid = fork();
+		#ifdef DEBUG
+			printf("%s %d\n", SHELL, pid);
+		#endif
+		if (pid < 0){
+			printf("%s Could not create child process.\n", SHELL);
+		}
+		else if (pid == 0){
+			execvp(buff[0], buff);
+		}
+		else{
+			wait(nullptr);
+		}
+	}
+
 }
 
 int main(int argc, char **argv) {
@@ -89,10 +145,12 @@ int main(int argc, char **argv) {
 	// tokenize the input, run the command(s), and print the result
 	// do this in a loop
 	
-	display_splash();
 
-	std::string cmd;
-	std::vector<std::string> tokens;
+	char 	cmd[MAX_LEN];
+	char* 	jobs[MAX_JOBS];
+	
+	display_splash();
+	
 	while (1){
 		
 		#ifdef beta
@@ -101,66 +159,13 @@ int main(int argc, char **argv) {
 			std::cout << "dragonshell: > ";
 		#endif
 
-		getline(std::cin, cmd);
-		if (cmd == "")
-			continue;
-
-		tokens = tokenize(cmd, " ");
-		if (tokens[0] == "cd"){
-			if (tokens.size() >= 2){
-				if (chdir(tokens[1].c_str()) == -1){
-					std::cout << SHELL << "No such file or directory" << std::endl;
-				}
-			}
-			else{
-				std::cout << SHELL << "expected argument to \"cd\"" << std::endl;
-			}
-		}
-		else if (tokens[0] == "pwd"){
-			std::cout << get_current_dir_name() << std::endl;
+		fgets(cmd, MAX_LEN, stdin);
+		tokenize_c(cmd, "\n", jobs);
+		int numJobs = tokenize_c(cmd, ";", jobs);
+		for (int i = 0; i < numJobs; ++i){
+			run_cmd(jobs[i]);
 		}
 
-		else if (tokens[0] == "$PATH"){
-			// TODO
-			char buff[40];
-			if (getcwd(buff, sizeof(buff)) == nullptr){
-				std::cout << SHELL << "Error occured when printing $PATH" << std::endl;
-			}
-			else{
-				std::cout << buff << std::endl;
-			}
-
-		}
-		else if (tokens[0] == "a2path"){
-			// TODO
-		}
-		else if (tokens[0] == "exit"){
-			std::cout << "Need to ensure all child processes have been terminated. ";
-			std::cout << "Besides, thanks for using the dragonshell." << std::endl;
-			break;
-		}
-		else if (tokens.size() > 0){
-			pid_t pid = fork();
-			#ifdef DEBUG
-				std::cout << SHELL << pid << std::endl;
-			#endif
-			if (pid < 0){
-				std::cout << SHELL << "Could not create child process." << std::endl;
-			}
-			else if (pid == 0){
-				char** args = new char*[20];
-				std::cout << "tokenizing " << cmd << std::endl;
-				tokenize_c((char*)cmd.c_str(), " ", args);
-				execvp(args[0], args);
-				delete [] args;
-			}
-			else{
-				wait(nullptr);
-			}
-		}
-		else{
-			continue;
-		}
 	}
 
 	return 0;
