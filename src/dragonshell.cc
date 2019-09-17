@@ -132,6 +132,7 @@ void run_cmd(char* arg){
 		}
 		else if (pid == 0){
 			execvp(buff[0], buff);
+			exit(0);
 		}
 		else{
 			wait(nullptr);
