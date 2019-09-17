@@ -96,15 +96,16 @@ int main(int argc, char **argv) {
 	while (1){
 		
 		#ifdef beta
-		std::cout << "dragonshell: " << get_current_dir_name() << " > ";
+			std::cout << "dragonshell: " << get_current_dir_name() << " > ";
 		#else
-		std::cout << "dragonshell: > ";
+			std::cout << "dragonshell: > ";
 		#endif
 
 		getline(std::cin, cmd);
+		if (cmd == "")
+			continue;
 
 		tokens = tokenize(cmd, " ");
-
 		if (tokens[0] == "cd"){
 			if (tokens.size() >= 2){
 				if (chdir(tokens[1].c_str()) == -1){
@@ -119,20 +120,6 @@ int main(int argc, char **argv) {
 			std::cout << get_current_dir_name() << std::endl;
 		}
 
-#ifdef beta
-
-		else if (tokens[0] == "ls"){
-			struct dirent* entry;
-			DIR* dir = opendir(get_current_dir_name());
-			if (dir != nullptr){
-				while ((entry = readdir(dir)) != nullptr){
-					std::cout << entry->d_name << "\t";
-				}
-				std::cout << std::endl << std::endl;
-				closedir(dir);
-			}
-		}
-#endif
 		else if (tokens[0] == "$PATH"){
 			// TODO
 			char buff[40];
@@ -152,22 +139,27 @@ int main(int argc, char **argv) {
 			std::cout << "Besides, thanks for using the dragonshell." << std::endl;
 			break;
 		}
-		else{
+		else if (tokens.size() > 0){
 			pid_t pid = fork();
-#ifdef DEBUG
-			std::cout << SHELL << pid << std::endl;
-#endif
+			#ifdef DEBUG
+				std::cout << SHELL << pid << std::endl;
+			#endif
 			if (pid < 0){
 				std::cout << SHELL << "Could not create child process." << std::endl;
 			}
 			else if (pid == 0){
-				char** args;
+				char** args = new char*[20];
+				std::cout << "tokenizing " << cmd << std::endl;
 				tokenize_c((char*)cmd.c_str(), " ", args);
 				execvp(args[0], args);
+				delete [] args;
 			}
 			else{
 				wait(nullptr);
 			}
+		}
+		else{
+			continue;
 		}
 	}
 
