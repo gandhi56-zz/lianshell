@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.5)
+project(dragonshell)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 -Wall")
+file(GLOB SOURCES ./src/*.cc)
+add_executable(dragonshell ${SOURCES})
