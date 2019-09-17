@@ -1,18 +1,21 @@
 
 CC = g++
 CCFLAGS = -Wall -std=c++17
-SRC = ./src/
-OBJ = ./obj/
+SOURCES = $(wildcard ./src/*.cc)
+OBJECTS = $(SOURCES:./src/%.cc=./obj/%.o)
+
 HEADER = ./include/
 
-dragonshell: $(OBJ)dragonshell.o
-	$(CC) $(CCFLAGS) $^ -o $@
+.PHONY: clean
 
-$(OBJ)dragonshell.o: $(SRC)dragonshell.cc
+dragonshell: $(OBJECTS)
+	$(CC) $(CCFLAGS) $< -o $@
+
+$(OBJECTS): $(SOURCES)
 	mkdir -p $(@D)
-	$(CC) $(CCFLAGS) $^ -c -o $@
+	$(CC) $(CCFLAGS) $< -c -o $@
 
 clean:
-	@rm dragonshell
-	@rm -rf $(OBJ)
+	@rm -rf dragonshell
+	@rm -rf $(OBJECTS)
 
