@@ -1,5 +1,5 @@
 
-//#define beta
+#define beta
 #define SHELL "dragonshell: "
 
 #include <vector>
@@ -8,6 +8,9 @@
 #include <iostream>
 
 #include <unistd.h>	// system calls
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <stdio.h>
 
 #ifdef beta
 	#include <dirent.h>	// for "ls" command, not required by assignment
@@ -55,14 +58,30 @@ std::vector<std::string> tokenize(const std::string &str, const char *delim) {
 	char* tokenized_string = strtok(cstr, delim);
 
 	std::vector<std::string> tokens;
-	while (tokenized_string != NULL)
-	{
-	tokens.push_back(std::string(tokenized_string));
-	tokenized_string = strtok(NULL, delim);
+	while (tokenized_string != NULL){
+		tokens.push_back(std::string(tokenized_string));
+		tokenized_string = strtok(NULL, delim);
 	}
 	delete[] cstr;
 
 	return tokens;
+}
+
+/**
+ * @brief Tokenize a C string
+ *
+ * @param str - The C string to tokenize
+ * @param delim - The C string containing delimiter character(s)
+ * @param argv - A char* array that will contain the tokenized strings
+ * Make sure that you allocate enough space for the array.
+ */
+void tokenize_c(char* str, const char* delim, char ** argv) {
+	char* token;
+	token = strtok(str, delim);
+	for(size_t i = 0; token != NULL; ++i){
+		argv[i] = token;
+		token = strtok(NULL, delim);
+	}
 }
 
 int main(int argc, char **argv) {
@@ -134,7 +153,21 @@ int main(int argc, char **argv) {
 			break;
 		}
 		else{
-			//execve(tokens[0], "", "");
+			pid_t pid = fork();
+#ifdef DEBUG
+			std::cout << SHELL << pid << std::endl;
+#endif
+			if (pid < 0){
+				std::cout << SHELL << "Could not create child process." << std::endl;
+			}
+			else if (pid == 0){
+				char** args;
+				tokenize_c((char*)cmd.c_str(), " ", args);
+				execvp(args[0], args);
+			}
+			else{
+				wait(nullptr);
+			}
 		}
 	}
 
