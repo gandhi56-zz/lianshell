@@ -6,8 +6,8 @@
 #define NUM_ARGS		20
 
 #include <vector>
-#include <cstring>
-//#include <cstring>
+#include <string.h>
+#include <stdlib.h>
 
 #include <unistd.h>	// system calls
 #include <sys/types.h>
@@ -105,10 +105,14 @@ void run_cmd(char* arg, std::vector<int>& backProc){
 		}
 	}
 	else if (strcmp(buff[0], "$PATH") == 0){
-		// TODO
+		char* env = getenv("PATH");
+		printf("Current PATH: %s\n", env);
 	}
 	else if (strcmp(buff[0], "a2path") == 0){
-		// TODO
+		char* pathArgs[NUM_ARGS];
+		len = tokenize_c(buff[1], ":", pathArgs);
+		printf("%s\n", pathArgs[1]);
+		setenv("PATH", pathArgs[1], false);
 	}
 
 	// call _exit system call
@@ -121,6 +125,8 @@ void run_cmd(char* arg, std::vector<int>& backProc){
 	// execute command
 	else if (len){
 		
+		// TODO run process in the background
+
 		pid_t pid = fork();
 		if (pid > 0){
 			if (buff[len-1] == "&"){
