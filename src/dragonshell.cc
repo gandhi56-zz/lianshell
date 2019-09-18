@@ -55,9 +55,9 @@ std::vector<std::string> tokenize(const std::string &str, const char *delim) {
 	char* tokenized_string = strtok(cstr, delim);
 
 	std::vector<std::string> tokens;
-	while (tokenized_string != NULL){
+	while (tokenized_string != nullptr){
 		tokens.push_back(std::string(tokenized_string));
-		tokenized_string = strtok(NULL, delim);
+		tokenized_string = strtok(nullptr, delim);
 	}
 	delete[] cstr;
 
@@ -77,9 +77,9 @@ int tokenize_c(char* str, const char* delim, char ** argv) {
 	char* token;
 	token = strtok(str, delim);
 	int count = 0;
-	for(size_t i = 0; token != NULL; ++i){
+	for(size_t i = 0; token != nullptr; ++i){
 		argv[i] = token;
-		token = strtok(NULL, delim);
+		token = strtok(nullptr, delim);
 		count++;
 	}
 	return count;
