@@ -93,13 +93,8 @@ void run_cmd(char* arg, std::vector<int>& backProc){
 	// expected nullptr by system calls
 	buff[len] = nullptr;
 
-	// print current working directory
-	if (strcmp(buff[0], "pwd") == 0){
-		printf("%s\n", get_current_dir_name());
-	}
-
 	// change directory
-	else if (strcmp(buff[0], "cd") == 0){
+	if (strcmp(buff[0], "cd") == 0){
 		if (len >= 2){
 			if (chdir(buff[1]) == -1){
 				printf("%s No such file or directory\n", SHELL);
