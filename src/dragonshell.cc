@@ -8,11 +8,11 @@
 #include <vector>
 #include <string.h>
 #include <stdlib.h>
-
 #include <unistd.h>	// system calls
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <stdio.h>
+#include <fcntl.h>
 
 void display_splash(){
 	printf("                                   ______________                                           					\n");
@@ -55,9 +55,9 @@ std::vector<std::string> tokenize(const std::string &str, const char *delim) {
 	char* tokenized_string = strtok(cstr, delim);
 
 	std::vector<std::string> tokens;
-	while (tokenized_string != nullptr){
+	while (tokenized_string != NULL){
 		tokens.push_back(std::string(tokenized_string));
-		tokenized_string = strtok(nullptr, delim);
+		tokenized_string = strtok(NULL, delim);
 	}
 	delete[] cstr;
 
@@ -77,9 +77,9 @@ int tokenize_c(char* str, const char* delim, char ** argv) {
 	char* token;
 	token = strtok(str, delim);
 	int count = 0;
-	for(size_t i = 0; token != nullptr; ++i){
+	for(size_t i = 0; token != NULL; ++i){
 		argv[i] = token;
-		token = strtok(nullptr, delim);
+		token = strtok(NULL, delim);
 		count++;
 	}
 	return count;
@@ -90,8 +90,8 @@ void run_cmd(char* arg, std::vector<int>& backProc){
 	int len = tokenize_c(arg, "\n", buff);
 	len = tokenize_c(arg, " ", buff);
 
-	// expected nullptr by system calls
-	buff[len] = nullptr;
+	// expected NULL by system calls
+	buff[len] = NULL;
 
 	// change directory
 	if (strcmp(buff[0], "cd") == 0){
@@ -109,10 +109,24 @@ void run_cmd(char* arg, std::vector<int>& backProc){
 		printf("Current PATH: %s\n", env);
 	}
 	else if (strcmp(buff[0], "a2path") == 0){
+		// TODO is this implemented correctly?
+
+		char* env = getenv("PATH");
 		char* pathArgs[NUM_ARGS];
+
 		len = tokenize_c(buff[1], ":", pathArgs);
-		printf("%s\n", pathArgs[1]);
-		setenv("PATH", pathArgs[1], false);
+
+		if (pathArgs[0] == "$PATH"){
+			// append
+			strcat(env, ":");
+			strcat(env, pathArgs[1]);
+			setenv("PATH", env, 1);
+		}
+		else{
+			// overwrite
+			setenv("PATH", pathArgs[1], 1);
+		}
+
 	}
 
 	// call _exit system call
@@ -124,28 +138,61 @@ void run_cmd(char* arg, std::vector<int>& backProc){
 
 	// execute command
 	else if (len){
-		
-		// TODO run process in the background
+
+		// check if this process redirects
+		int redirIndex = 0;
+		char outStream[MAX_LEN];
+		// buff[len] = NULL
+		while (redirIndex < len and buff[redirIndex][0] != '>'){
+			//printf("%d %s\n", redirIndex, buff[redirIndex]);
+			redirIndex++;
+		}
+
+	/*
+		TODO
+		printf("redirIndex = %d\n", redirIndex);
+		if (redirIndex < len){
+			strcpy(outStream, buff[redirIndex+1]);
+			printf("outStream = %s\n", outStream);
+				printf("proc[%d] = %s\n", i, proc[i]);
+		}
+
+		int fd = open(outStream, O_WRONLY | O_APPEND);
+		if (fd < 0){
+			// TODO handle unable to open error here
+		}
+
+		write(fd, "hello world!", 13);
+	*/
 
 		pid_t pid = fork();
 		if (pid > 0){
 			if (buff[len-1] == "&"){
-				
+				// TODO run process in the background
+				printf("this job must be put into background...\n");
 			}
 			else{
-				while (1){
-					int status;
-					int wpid = wait(&status);
-					if (wpid == pid){
-						break;
-					}
-					//waitpid(pid, &status, 0);
-				}
+				printf("waiting for child process to end...\n");
+				waitpid(pid, NULL, 0);
+				printf("child process has ended\n");
 			}
 		}
 		else if (pid == 0){
 			// child process
-			execvp(buff[0], buff);
+			char* proc[redirIndex+1];
+
+			for (int i = 0; i < redirIndex; ++i){
+				proc[i] = buff[i];
+			}
+			proc[redirIndex] = NULL;
+
+			printf("Child process: ");
+			for (int i = 0; i < redirIndex; ++i){
+				printf("%s ", proc[i]);
+			}
+			printf("\n");
+
+			execvp(proc[0], proc);
 		}
 		else{
 			printf("%s Could not create child process.\n", SHELL);
@@ -169,7 +216,7 @@ int main(int argc, char **argv) {
 		#ifdef beta
 			printf("dragonshell: %s > ", get_current_dir_name());
 		#else
-			printf("dragonshell: > ");
+			printf("dragonshell [%d]: > ", getpid());
 		#endif
 
 		fgets(cmd, MAX_LEN, stdin);
