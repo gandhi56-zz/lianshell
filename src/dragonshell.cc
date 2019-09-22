@@ -98,10 +98,6 @@ void run_cmd(char* arg, std::vector<int>& backProc){
 	// expected NULL by system calls
 	buff[len] = NULL;
 
-	for (int i = 0; i < len; ++i){
-		printf("%d %s\n", i, buff[i]);
-	}
-
 	// change directory
 	if (strcmp(buff[0], "cd") == 0){
 		if (len >= 2){
@@ -119,21 +115,16 @@ void run_cmd(char* arg, std::vector<int>& backProc){
 	}
 	else if (strcmp(buff[0], "a2path") == 0){
 		// TODO is this implemented correctly?
-
 		char* env = getenv("PATH");
 		char* pathArgs[NUM_ARGS];
-
 		len = tokenize_c(buff[1], ":", pathArgs);
-
 		for (int i = 0; i < len; ++i){
 			printf("pathArgs[%d] = %s\n", i, pathArgs[i]);
 		}
-
 		if (len == 0){
 			printf("Please provide the argument to run the command.\n");
 			return;
 		}
-
 		printf("len = %d\n", len);
 		if (strcmp(pathArgs[0], "$PATH") == 0 or pathArgs[0][0] == '$'){
 			// append
@@ -163,29 +154,26 @@ void run_cmd(char* arg, std::vector<int>& backProc){
 		int redirIndex = 0;
 		int fileDcpt = 0;
 		int procLen = len+1;
+		bool openFile = false;
 		if (len >= 3){
 			while (redirIndex < len){
 				if (buff[redirIndex][0] == '>'){
+					openFile = true;
 					break;
 				}
 				redirIndex++;
 			}
-
-			printf("redir file name = %s\n", buff[redirIndex+1]);
 			procLen = redirIndex;
 		}
 		
-		for (int i= 0; i < len+1; ++i){
-			printf("buff[%d] = %s\n", i, buff[i]);
-		}
-		printf("redirIndex = %d\n", redirIndex);
-
 		pid_t pid = fork();
 		if (pid == 0){
 
 			// set up the target file for redirection, if specified
-			if (redirIndex < len){
+			if (openFile){
 				fileDcpt = open(buff[redirIndex+1], O_CREAT | O_RDWR);
+				printf("opening file descriptor %s\n", buff[redirIndex+1]);
+				printf("redirIndex = %d\n", redirIndex);
 			}
 
 			if (buff[len-1][0] == '&'){
@@ -221,12 +209,11 @@ void run_cmd(char* arg, std::vector<int>& backProc){
 				char* proc[procLen];
 				for (int i = 0; i < procLen; ++i){
 					proc[i] = buff[i];
-					printf("proc[%d] = %s\n", i, proc[i]);
+					//printf("proc[%d] = %s\n", i, proc[i]);
 				}
 				proc[procLen] = NULL;
 				if (fileDcpt > 0){
 					dup2(fileDcpt, 1);
-				
 				}
 				execvp(proc[0], proc);
 			}
