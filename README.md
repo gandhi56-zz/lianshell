@@ -1,5 +1,7 @@
 # AnshEll
 
+![](images/dragonshell.png)
+
 ## Project description
 AnshEll is a UNIX-based shell program that supports the following features:
 1. Support for built-in commands as defined the environment variables.
