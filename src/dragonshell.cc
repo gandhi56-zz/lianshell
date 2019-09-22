@@ -1,9 +1,12 @@
 
+// TODO when an invalid command is entered, a child process is created executing the dragonshell from fork()...
+
 //#define beta
 #define SHELL 			"dragonshell: "
 #define MAX_LEN			120
 #define MAX_JOBS		20
 #define NUM_ARGS		20
+#define getmin(a,b) ((a)<(b)?(a):(b))
 
 #include <vector>
 #include <string.h>
@@ -14,6 +17,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <fcntl.h>
+
 
 void display_splash(){
 	printf("                                   ______________                                           					\n");
@@ -94,6 +98,10 @@ void run_cmd(char* arg, std::vector<int>& backProc){
 	// expected NULL by system calls
 	buff[len] = NULL;
 
+	for (int i = 0; i < len; ++i){
+		printf("%d %s\n", i, buff[i]);
+	}
+
 	// change directory
 	if (strcmp(buff[0], "cd") == 0){
 		if (len >= 2){
@@ -153,19 +161,35 @@ void run_cmd(char* arg, std::vector<int>& backProc){
 
 		// check if this process redirects
 		int redirIndex = 0;
-		char outStream[MAX_LEN];
-		// buff[len] = NULL
-		while (redirIndex < len and buff[redirIndex][0] != '>'){
-			//printf("%d %s\n", redirIndex, buff[redirIndex]);
-			redirIndex++;
-		}
+		int fileDcpt = 0;
+		int procLen = len+1;
+		if (len >= 3){
+			while (redirIndex < len){
+				if (buff[redirIndex][0] == '>'){
+					break;
+				}
+				redirIndex++;
+			}
 
+			printf("redir file name = %s\n", buff[redirIndex+1]);
+			procLen = redirIndex;
+		}
+		
 		for (int i= 0; i < len+1; ++i){
 			printf("buff[%d] = %s\n", i, buff[i]);
 		}
+		printf("redirIndex = %d\n", redirIndex);
 
 		pid_t pid = fork();
 		if (pid == 0){
+
+			// set up the target file for redirection, if specified
+			if (redirIndex < len){
+				fileDcpt = open(buff[redirIndex+1], O_CREAT | O_RDWR);
+				write(fileDcpt, "Hello World!\n", strlen("Hello World!\n"));
+				printf("fileDcpt = %d\n", fileDcpt);
+			}
+
 			if (buff[len-1][0] == '&'){
 				printf("Putting job %d in the background.\n", getpid());
 				int cmdLen = 0;
@@ -196,20 +220,17 @@ void run_cmd(char* arg, std::vector<int>& backProc){
 				_exit(1);
 			}
 			else{
-				char* proc[redirIndex+1];
-				for (int i = 0; i < redirIndex; ++i){
+				char* proc[procLen];
+				for (int i = 0; i < procLen; ++i){
 					proc[i] = buff[i];
+					printf("proc[%d] = %s\n", i, proc[i]);
 				}
-				proc[redirIndex] = NULL;
-
-				printf("Child process: ");
-				for (int i = 0; i < redirIndex; ++i){
-					printf("%s ", proc[i]);
-				}
-				printf("\n");
-
+				proc[procLen] = NULL;
 				execvp(proc[0], proc);
 			}
+
+			if (fileDcpt > 0)
+				close(fileDcpt);
 
 		}
 
