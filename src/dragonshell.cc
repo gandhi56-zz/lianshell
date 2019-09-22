@@ -186,8 +186,6 @@ void run_cmd(char* arg, std::vector<int>& backProc){
 			// set up the target file for redirection, if specified
 			if (redirIndex < len){
 				fileDcpt = open(buff[redirIndex+1], O_CREAT | O_RDWR);
-				write(fileDcpt, "Hello World!\n", strlen("Hello World!\n"));
-				printf("fileDcpt = %d\n", fileDcpt);
 			}
 
 			if (buff[len-1][0] == '&'){
@@ -226,11 +224,13 @@ void run_cmd(char* arg, std::vector<int>& backProc){
 					printf("proc[%d] = %s\n", i, proc[i]);
 				}
 				proc[procLen] = NULL;
+				if (fileDcpt > 0){
+					dup2(fileDcpt, 1);
+				
+				}
 				execvp(proc[0], proc);
 			}
 
-			if (fileDcpt > 0)
-				close(fileDcpt);
 
 		}
 
@@ -238,6 +238,8 @@ void run_cmd(char* arg, std::vector<int>& backProc){
 			if (buff[len-1] != "&"){
 				waitpid(pid, NULL, 0);
 			}
+			if (fileDcpt > 0)
+				close(fileDcpt);
 		}
 		else{
 			printf("Child process could not be created.\n");
