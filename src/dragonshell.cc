@@ -1,18 +1,23 @@
 
+// TODO when an invalid command is entered, a child process is created executing the dragonshell from fork()...
+
 //#define beta
 #define SHELL 			"dragonshell: "
 #define MAX_LEN			120
 #define MAX_JOBS		20
 #define NUM_ARGS		20
+#define getmin(a,b) 	((a)<(b)?(a):(b))
 
 #include <vector>
 #include <string.h>
 #include <stdlib.h>
-
 #include <unistd.h>	// system calls
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <stdio.h>
+#include <iostream>
+#include <fcntl.h>
+
 
 void display_splash(){
 	printf("                                   ______________                                           					\n");
@@ -55,9 +60,9 @@ std::vector<std::string> tokenize(const std::string &str, const char *delim) {
 	char* tokenized_string = strtok(cstr, delim);
 
 	std::vector<std::string> tokens;
-	while (tokenized_string != nullptr){
+	while (tokenized_string != NULL){
 		tokens.push_back(std::string(tokenized_string));
-		tokenized_string = strtok(nullptr, delim);
+		tokenized_string = strtok(NULL, delim);
 	}
 	delete[] cstr;
 
@@ -77,9 +82,9 @@ int tokenize_c(char* str, const char* delim, char ** argv) {
 	char* token;
 	token = strtok(str, delim);
 	int count = 0;
-	for(size_t i = 0; token != nullptr; ++i){
+	for(size_t i = 0; token != NULL; ++i){
 		argv[i] = token;
-		token = strtok(nullptr, delim);
+		token = strtok(NULL, delim);
 		count++;
 	}
 	return count;
@@ -90,8 +95,8 @@ void run_cmd(char* arg, std::vector<int>& backProc){
 	int len = tokenize_c(arg, "\n", buff);
 	len = tokenize_c(arg, " ", buff);
 
-	// expected nullptr by system calls
-	buff[len] = nullptr;
+	// expected NULL by system calls
+	buff[len] = NULL;
 
 	// change directory
 	if (strcmp(buff[0], "cd") == 0){
@@ -109,48 +114,124 @@ void run_cmd(char* arg, std::vector<int>& backProc){
 		printf("Current PATH: %s\n", env);
 	}
 	else if (strcmp(buff[0], "a2path") == 0){
+		// TODO is this implemented correctly?
+		char* env = getenv("PATH");
 		char* pathArgs[NUM_ARGS];
 		len = tokenize_c(buff[1], ":", pathArgs);
-		printf("%s\n", pathArgs[1]);
-		setenv("PATH", pathArgs[1], false);
+		for (int i = 0; i < len; ++i){
+			printf("pathArgs[%d] = %s\n", i, pathArgs[i]);
+		}
+		if (len == 0){
+			printf("Please provide the argument to run the command.\n");
+			return;
+		}
+		printf("len = %d\n", len);
+		if (strcmp(pathArgs[0], "$PATH") == 0 or pathArgs[0][0] == '$'){
+			// append
+			//strcat(env, ":");
+			//strcat(env, pathArgs[1]);
+			printf("0 - adding %s...\n", pathArgs[1]);
+			setenv("PATH", pathArgs[1], 0);
+		}
+		else{
+			// overwrite
+			printf("1 - adding %s...\n", pathArgs[0]);
+			setenv("PATH", pathArgs[0], 1);
+		}
+
 	}
 
 	// call _exit system call
 	else if (strcmp(buff[0], "exit") == 0){
-		printf("Need to ensure all child processes have been terminated. ");
-		printf("Besides, thanks for using the dragonshell.\n");
+		printf("Thanks for using the dragonshell.\n");
 		_exit(0);
 	}
 
 	// execute command
 	else if (len){
-		
-		// TODO run process in the background
 
+		// check if this process redirects
+		int redirIndex = 0;
+		int fileDcpt = 0;
+		int procLen = len+1;
+		bool openFile = false;
+		if (len >= 3){
+			while (redirIndex < len){
+				if (buff[redirIndex][0] == '>'){
+					openFile = true;
+					break;
+				}
+				redirIndex++;
+			}
+			procLen = redirIndex;
+		}
+		
 		pid_t pid = fork();
-		if (pid > 0){
-			if (buff[len-1] == "&"){
-				
+		if (pid == 0){
+
+			// set up the target file for redirection, if specified
+			if (openFile){
+				fileDcpt = open(buff[redirIndex+1], O_CREAT | O_RDWR);
+				printf("opening file descriptor %s\n", buff[redirIndex+1]);
+				printf("redirIndex = %d\n", redirIndex);
+			}
+
+			if (buff[len-1][0] == '&'){
+				printf("Putting job %d in the background.\n", getpid());
+				int cmdLen = 0;
+				for (int i = 0; i < len; ++i){
+					cmdLen += strlen(buff[i]);
+				}
+
+				char proc[cmdLen];
+				int k =0 ;
+				for (int i = 0; i < len; ++i){
+					strcpy(&proc[k], buff[i]);
+				}
+
+				//close(STDIN_FILENO);
+				//close(STDOUT_FILENO);
+				//close(STDERR_FILENO);
+
+				char* child[len];
+				for (int i =0 ; i < len-1; ++i)
+					child[i] = buff[i];
+				child[len-1] = NULL;
+
+				int x = open("/dev/null", O_RDWR);
+				printf("%d\n", x);
+				dup(x);
+				dup(x);
+				execvp(child[0], child);
+				_exit(1);
 			}
 			else{
-				while (1){
-					int status;
-					int wpid = wait(&status);
-					if (wpid == pid){
-						break;
-					}
-					//waitpid(pid, &status, 0);
+				char* proc[procLen];
+				for (int i = 0; i < procLen; ++i){
+					proc[i] = buff[i];
+					//printf("proc[%d] = %s\n", i, proc[i]);
 				}
+				proc[procLen] = NULL;
+				if (fileDcpt > 0){
+					dup2(fileDcpt, 1);
+				}
+				execvp(proc[0], proc);
 			}
+
+
 		}
-		else if (pid == 0){
-			// child process
-			execvp(buff[0], buff);
+
+		else if (pid > 0){
+			if (buff[len-1] != "&"){
+				waitpid(pid, NULL, 0);
+			}
+			if (fileDcpt > 0)
+				close(fileDcpt);
 		}
 		else{
-			printf("%s Could not create child process.\n", SHELL);
-			return;
+			printf("Child process could not be created.\n");
 		}
+
 	}
 }
 
@@ -169,7 +250,7 @@ int main(int argc, char **argv) {
 		#ifdef beta
 			printf("dragonshell: %s > ", get_current_dir_name());
 		#else
-			printf("dragonshell: > ");
+			printf("dragonshell [%d]: > ", getpid());
 		#endif
 
 		fgets(cmd, MAX_LEN, stdin);
