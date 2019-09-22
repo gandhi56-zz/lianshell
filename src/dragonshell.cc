@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <stdio.h>
+#include <iostream>
 #include <fcntl.h>
 
 void display_splash(){
@@ -116,23 +117,34 @@ void run_cmd(char* arg, std::vector<int>& backProc){
 
 		len = tokenize_c(buff[1], ":", pathArgs);
 
-		if (pathArgs[0] == "$PATH"){
+		for (int i = 0; i < len; ++i){
+			printf("pathArgs[%d] = %s\n", i, pathArgs[i]);
+		}
+
+		if (len == 0){
+			printf("Please provide the argument to run the command.\n");
+			return;
+		}
+
+		printf("len = %d\n", len);
+		if (strcmp(pathArgs[0], "$PATH") == 0 or pathArgs[0][0] == '$'){
 			// append
-			strcat(env, ":");
-			strcat(env, pathArgs[1]);
-			setenv("PATH", env, 1);
+			//strcat(env, ":");
+			//strcat(env, pathArgs[1]);
+			printf("0 - adding %s...\n", pathArgs[1]);
+			setenv("PATH", pathArgs[1], 0);
 		}
 		else{
 			// overwrite
-			setenv("PATH", pathArgs[1], 1);
+			printf("1 - adding %s...\n", pathArgs[0]);
+			setenv("PATH", pathArgs[0], 1);
 		}
 
 	}
 
 	// call _exit system call
 	else if (strcmp(buff[0], "exit") == 0){
-		printf("Need to ensure all child processes have been terminated. ");
-		printf("Besides, thanks for using the dragonshell.\n");
+		printf("Thanks for using the dragonshell.\n");
 		_exit(0);
 	}
 
@@ -148,56 +160,68 @@ void run_cmd(char* arg, std::vector<int>& backProc){
 			redirIndex++;
 		}
 
-	/*
-		TODO
-		printf("redirIndex = %d\n", redirIndex);
-		if (redirIndex < len){
-			strcpy(outStream, buff[redirIndex+1]);
-			printf("outStream = %s\n", outStream);
-				printf("proc[%d] = %s\n", i, proc[i]);
+		for (int i= 0; i < len+1; ++i){
+			printf("buff[%d] = %s\n", i, buff[i]);
 		}
-
-		int fd = open(outStream, O_WRONLY | O_APPEND);
-		if (fd < 0){
-			// TODO handle unable to open error here
-		}
-
-		write(fd, "hello world!", 13);
-	*/
 
 		pid_t pid = fork();
-		if (pid > 0){
-			if (buff[len-1] == "&"){
-				// TODO run process in the background
-				printf("this job must be put into background...\n");
+		if (pid == 0){
+			if (buff[len-1][0] == '&'){
+				printf("Putting job %d in the background.\n", getpid());
+				int cmdLen = 0;
+				for (int i = 0; i < len; ++i){
+					cmdLen += strlen(buff[i]);
+				}
+
+				char proc[cmdLen];
+				int k =0 ;
+				for (int i = 0; i < len; ++i){
+					strcpy(&proc[k], buff[i]);
+				}
+
+				//close(STDIN_FILENO);
+				//close(STDOUT_FILENO);
+				//close(STDERR_FILENO);
+
+				char* child[len];
+				for (int i =0 ; i < len-1; ++i)
+					child[i] = buff[i];
+				child[len-1] = NULL;
+
+				int x = open("/dev/null", O_RDWR);
+				printf("%d\n", x);
+				dup(x);
+				dup(x);
+				execvp(child[0], child);
+				_exit(1);
 			}
 			else{
-				printf("waiting for child process to end...\n");
-				waitpid(pid, NULL, 0);
-				printf("child process has ended\n");
+				char* proc[redirIndex+1];
+				for (int i = 0; i < redirIndex; ++i){
+					proc[i] = buff[i];
+				}
+				proc[redirIndex] = NULL;
+
+				printf("Child process: ");
+				for (int i = 0; i < redirIndex; ++i){
+					printf("%s ", proc[i]);
+				}
+				printf("\n");
+
+				execvp(proc[0], proc);
 			}
+
 		}
-		else if (pid == 0){
-			// child process
-			char* proc[redirIndex+1];
 
-			for (int i = 0; i < redirIndex; ++i){
-				proc[i] = buff[i];
+		else if (pid > 0){
+			if (buff[len-1] != "&"){
+				waitpid(pid, NULL, 0);
 			}
-			proc[redirIndex] = NULL;
-
-			printf("Child process: ");
-			for (int i = 0; i < redirIndex; ++i){
-				printf("%s ", proc[i]);
-			}
-			printf("\n");
-
-			execvp(proc[0], proc);
 		}
 		else{
-			printf("%s Could not create child process.\n", SHELL);
-			return;
+			printf("Child process could not be created.\n");
 		}
+
 	}
 }
 
