@@ -6,7 +6,7 @@
 #define MAX_LEN			120
 #define MAX_JOBS		20
 #define NUM_ARGS		20
-#define getmin(a,b) ((a)<(b)?(a):(b))
+#define getmin(a,b) 	((a)<(b)?(a):(b))
 
 #include <vector>
 #include <string.h>
