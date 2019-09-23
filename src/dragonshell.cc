@@ -6,6 +6,7 @@
 #define MAX_LEN			120
 #define MAX_JOBS		20
 #define NUM_ARGS		20
+#define ENV_LEN			64
 #define getmin(a,b) 	((a)<(b)?(a):(b))
 
 #include <vector>
@@ -75,30 +76,24 @@ void change_dir(char* buff[NUM_ARGS], int& buffLen){
 	}
 }
 
-void update_path(char* buff[NUM_ARGS], int& buffLen){
-	// TODO is this implemented correctly?
-	char* env = getenv("PATH");
+void update_path(char* buff[NUM_ARGS], int& buffLen, std::vector<const char*>& env){
+	/*
+		TODO - grammar check; does the given variable even exist?
+	*/
 	char* pathArgs[NUM_ARGS];
 	buffLen = tokenize_c(buff[1], ":", pathArgs);
-	for (int i = 0; i < buffLen; ++i){
-		printf("pathArgs[%d] = %s\n", i, pathArgs[i]);
-	}
 	if (buffLen == 0){
 		printf("Please provide the argument to run the command.\n");
 		return;
 	}
-	printf("len = %d\n", buffLen);
 	if (strcmp(pathArgs[0], "$PATH") == 0 or pathArgs[0][0] == '$'){
 		// append
-		//strcat(env, ":");
-		//strcat(env, pathArgs[1]);
-		printf("0 - adding %s...\n", pathArgs[1]);
-		setenv("PATH", pathArgs[1], 0);
+		env.push_back(pathArgs[1]);
 	}
 	else{
 		// overwrite
-		printf("1 - adding %s...\n", pathArgs[0]);
-		setenv("PATH", pathArgs[0], 1);
+		env.clear();
+		env.push_back(pathArgs[0]);
 	}
 }
 
@@ -144,23 +139,45 @@ void run_child(char* buff[NUM_ARGS], int& procLen, int& fileDcpt){
 	execvp(proc[0], proc);
 }
 
-void run_cmd(char* arg, std::vector<int>& backProc){
+void run_cmd(char* arg, std::vector<int>& backProc, std::vector<const char*>& env){
 	char* buff[NUM_ARGS];
+	char procArgs[NUM_ARGS];
+	strcpy(procArgs, arg);
+
 	int len = tokenize_c(arg, "\n", buff);
+	printf("arg = %s\n", arg);
+	
 	len = tokenize_c(arg, " ", buff);
+	printf("arg = %s\n", procArgs);
+
+	char* pipeArgs[NUM_ARGS];
+	int pipeLen = 0;
+	pipeLen = tokenize_c(procArgs, "|", pipeArgs);
+	for (int i = 0; i < pipeLen; ++i){
+		printf("pipeArgs[%d] = %s\n", i,  pipeArgs[i]);
+	}
 
 	// expected NULL by system calls
 	buff[len] = NULL;
+	for (int i =0 ; i < len; ++i){
+		printf("buff[%d] = %s\n", i, buff[i]);
+	}
 
 	// change directory
 	if (strcmp(buff[0], "cd") == 0){
 		change_dir(buff, len);
 	}
 	else if (strcmp(buff[0], "$PATH") == 0){
-		printf("Current PATH: %s\n", getenv("PATH"));
+		printf("Current PATH: ");
+		for (int i = 0; i < env.size(); ++i){
+			printf("%s", env[i]);
+			if (i < env.size()-1)
+				printf(":");
+		}
+		printf("\n");
 	}
 	else if (strcmp(buff[0], "a2path") == 0){
-		update_path(buff, len);
+		update_path(buff, len, env);
 	}
 	else if (strcmp(buff[0], "exit") == 0){
 		printf("Thanks for using the dragonshell.\n");
@@ -185,6 +202,10 @@ void run_cmd(char* arg, std::vector<int>& backProc){
 			}
 			procLen = redirIndex;
 		}
+
+		// check if this process pipes bytes between processes
+		char* pipeArgs[2];
+		//len = tokenize()
 		
 		pid_t pid = fork();
 		if (pid == 0){
@@ -224,6 +245,7 @@ int main(int argc, char **argv) {
 	// do this in a loop
 	char 	cmd[MAX_LEN];
 	char* 	jobs[MAX_JOBS];
+	std::vector<const char*> env({"/bin/", "/usr/bin/"});
 	std::vector<int> backProc;
 	
 	display_splash();
@@ -240,7 +262,7 @@ int main(int argc, char **argv) {
 		tokenize_c(cmd, "\n", jobs);
 		int numJobs = tokenize_c(cmd, ";", jobs);
 		for (int i = 0; i < numJobs; ++i){
-			run_cmd(jobs[i], backProc);
+			run_cmd(jobs[i], backProc, env);
 		}
 
 	}
