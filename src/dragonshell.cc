@@ -54,7 +54,7 @@ void display_splash(){
  * @param argv - A char* array that will contain the tokenized strings
  * Make sure that you allocate enough space for the array.
  */
-int tokenize_c(char* str, const char* delim, char ** argv) {
+int tokenize(char* str, const char* delim, char ** argv) {
 	char* token;
 	token = strtok(str, delim);
 	int count = 0;
@@ -68,11 +68,11 @@ int tokenize_c(char* str, const char* delim, char ** argv) {
 
 void change_dir(char* buff[NUM_ARGS], int& buffLen){
 	if (buffLen < 2){
-		printf("%s expected argument to \"cd\"\n", SHELL);
+		perror("expected argument to chdir");
 		return;
 	}
 	if (chdir(buff[1]) == -1){
-		printf("%s No such file or directory\n", SHELL);
+		perror("unable to run chdir");
 	}
 }
 
@@ -81,7 +81,7 @@ void update_path(char* buff[NUM_ARGS], int& buffLen, std::vector<const char*>& e
 		TODO - grammar check; does the given variable even exist?
 	*/
 	char* pathArgs[NUM_ARGS];
-	buffLen = tokenize_c(buff[1], ":", pathArgs);
+	buffLen = tokenize(buff[1], ":", pathArgs);
 	if (buffLen == 0){
 		printf("Please provide the argument to run the command.\n");
 		return;
@@ -127,46 +127,39 @@ void run_child_bg(char* buff[NUM_ARGS], int& buffLen){
 	_exit(1);
 }
 
-void run_child(char* buff[NUM_ARGS], int& procLen, int& fileDcpt){
+void run_child(char* buff[NUM_ARGS], int& procLen){
 	char* proc[procLen];
 	for (int i = 0; i < procLen; ++i){
 		proc[i] = buff[i];
 	}
 	proc[procLen] = NULL;
-	if (fileDcpt > 0){
-		dup2(fileDcpt, 1);	// redirect output to file
-	}
 	execvp(proc[0], proc);
 }
 
 void run_cmd(char* arg, std::vector<int>& backProc, std::vector<const char*>& env){
-	char* buff[NUM_ARGS];
-	char procArgs[NUM_ARGS];
-	strcpy(procArgs, arg);
-
-	int len = tokenize_c(arg, "\n", buff);
-	printf("arg = %s\n", arg);
+	/*
+		arg: raw command from user input, ignoring '\n'
+		procArgs:
+		buff: 
+	*/
 	
-	len = tokenize_c(arg, " ", buff);
-	printf("arg = %s\n", procArgs);
-
-	char* pipeArgs[NUM_ARGS];
-	int pipeLen = 0;
-	pipeLen = tokenize_c(procArgs, "|", pipeArgs);
-	for (int i = 0; i < pipeLen; ++i){
-		printf("pipeArgs[%d] = %s\n", i,  pipeArgs[i]);
-	}
-
-	// expected NULL by system calls
+	
+	char* buff[NUM_ARGS];
+	int len = tokenize(arg, " ", buff);
 	buff[len] = NULL;
-	for (int i =0 ; i < len; ++i){
-		printf("buff[%d] = %s\n", i, buff[i]);
-	}
+	printf("arg = %s\n", arg);
+
+	// char* pipeArgs[NUM_ARGS];
+	// int pipeLen = 0;
+	// pipeLen = tokenize(procArgs, "|", pipeArgs);
+	// for (int i = 0; i < pipeLen; ++i){
+	// 	printf("pipeArgs[%d] = %s\n", i,  pipeArgs[i]);
+	// }
 
 	// change directory
 	if (strcmp(buff[0], "cd") == 0){
 		change_dir(buff, len);
-	}
+	} 
 	else if (strcmp(buff[0], "$PATH") == 0){
 		printf("Current PATH: ");
 		for (int i = 0; i < env.size(); ++i){
@@ -186,42 +179,16 @@ void run_cmd(char* arg, std::vector<int>& backProc, std::vector<const char*>& en
 
 	// execute command
 	else if (len){
-
-		// check if this process redirects
-		int redirIndex = 0;
-		int fileDcpt = 0;
-		int procLen = len+1;
-		bool openFile = false;
-		if (len >= 3){
-			while (redirIndex < len){
-				if (buff[redirIndex][0] == '>'){
-					openFile = true;
-					break;
-				}
-				redirIndex++;
-			}
-			procLen = redirIndex;
-		}
-
-		// check if this process pipes bytes between processes
-		char* pipeArgs[2];
-		//len = tokenize()
 		
+		int procLen = len+1;
+
 		pid_t pid = fork();
 		if (pid == 0){
-
-			// set up the target file for redirection, if specified
-			if (openFile){
-				fileDcpt = open(buff[redirIndex+1], O_CREAT | O_RDWR);
-				printf("opening file descriptor %s\n", buff[redirIndex+1]);
-				printf("redirIndex = %d\n", redirIndex);
-			}
-
 			if (buff[len-1][0] == '&'){
 				run_child_bg(buff, len);
 			}
 			else{
-				run_child(buff, procLen, fileDcpt);
+				run_child(buff, procLen);
 			}
 		}
 
@@ -229,8 +196,6 @@ void run_cmd(char* arg, std::vector<int>& backProc, std::vector<const char*>& en
 			if (buff[len-1] != "&"){
 				waitpid(pid, NULL, 0);
 			}
-			if (fileDcpt > 0)
-				close(fileDcpt);
 		}
 		else{
 			printf("Child process could not be created.\n");
@@ -259,8 +224,8 @@ int main(int argc, char **argv) {
 		#endif
 
 		fgets(cmd, MAX_LEN, stdin);
-		tokenize_c(cmd, "\n", jobs);
-		int numJobs = tokenize_c(cmd, ";", jobs);
+		tokenize(cmd, "\n", jobs);
+		int numJobs = tokenize(cmd, ";", jobs);
 		for (int i = 0; i < numJobs; ++i){
 			run_cmd(jobs[i], backProc, env);
 		}
