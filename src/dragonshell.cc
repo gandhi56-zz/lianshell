@@ -56,6 +56,9 @@ void print_arr(char* arr[], int len, const char* cap){
 }
 
 bool cmd_exists(const char* cmd, char* varPath, char* path){
+	/*
+		TODO use tokenize instead, more efficient
+	*/
 	if (!path)
 		return false;
 	if(strchr(cmd, '/')) {
@@ -63,31 +66,22 @@ bool cmd_exists(const char* cmd, char* varPath, char* path){
         return access(cmd, X_OK)==0;
     }
 
-    // const char *path = getenv("PATH");
-    // if(!path) return false; // something is horribly wrong...
-    // we are sure we won't need a buffer any longer
     char *buf = (char*)malloc(strlen(path)+strlen(cmd)+3);
-    if(!buf) return false; // actually useless, see comment
-    // loop as long as we have stuff to examine in path
+
     for(; *path; ++path) {
-        // start from the beginning of the buffer
         char *p = buf;
-        // copy in buf the current path element
         for(; *path && *path!=':'; ++path,++p) {
             *p = *path;
         }
-        // empty path entries are treated like "."
         if(p==buf) *p++='.';
-        // slash and command name
         if(p[-1]!='/') *p++='/';
         strcpy(p, cmd);
-        // check if we can execute it
+		//printf("trying %s\n", buf);
         if(access(buf, X_OK)==0) {
         	strcpy(varPath, buf);
             free(buf);
             return true;
         }
-        // quit at last cycle
         if(!*path) break;
     }
     // not found
@@ -170,24 +164,6 @@ void run_child_bg(char* buff[NUM_ARGS], int& buffLen){
 	_exit(1);
 }
 
-void run_child(char* buff[NUM_ARGS], int& procLen, char* env, int& envSize){
-	printf("running child...\n");
-	char* proc[procLen];
-	for (int i = 0; i < procLen; ++i){
-		proc[i] = buff[i];
-		printf("buff[%d] = %s\n", i, buff[i]);
-	}
-	proc[procLen] = NULL;
-
-
-	// char* newargv[] = {(char*)NULL, (char*)"hello", (char*)"world",(char*) NULL};
-	char* newenv[] = {NULL};
-
-	// char* na[] = {"./hex", (char*)0};
-
-	// execvp(na[0], na);
-}
-
 void run_cmd(char* arg, char* env){
 	/*
 		arg: raw command from user input, ignoring '\n'
@@ -237,8 +213,12 @@ void run_cmd(char* arg, char* env){
 	else if (len){
 		char varPath[FNAME_SIZE];
 		int procLen = len+1;
+		bool runFromPath = true;
 
-		if (!cmd_exists(buff[0], varPath, env)){
+		if (buff[0][0] == '.'){
+			runFromPath = false;
+		}
+		if (runFromPath and !cmd_exists(buff[0], varPath, env)){
 			printf("%s could not be identified.\n", buff[0]);
 			return;
 		}
@@ -248,8 +228,15 @@ void run_cmd(char* arg, char* env){
 				run_child_bg(buff, len);
 			}
 			else{
-				if (execve(varPath, buff, NULL) == -1){
-					perror("foo");
+				if (runFromPath){
+					if (execve(varPath, buff, NULL) == -1){
+						perror("foo");
+					}
+				}
+				else{
+					if (execve(buff[0], buff, NULL) == -1){
+						perror("foo");
+					}
 				}
 			}
 		}
@@ -273,7 +260,7 @@ int main(int argc, char **argv) {
 	char* 	jobs[MAX_JOBS];
 	char 	env	[ENV_LEN * FNAME_SIZE];
 
-	update_path(env, "/usr/bin", true);
+	update_path(env, "/usr/bin/", true);
 	update_path(env, "/bin/", false);
 
 	display_splash();
