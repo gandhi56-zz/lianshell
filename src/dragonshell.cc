@@ -7,6 +7,7 @@
 #define MAX_JOBS		20
 #define NUM_ARGS		20
 #define ENV_LEN			64
+#define FNAME_SIZE		32
 #define getmin(a,b) 	((a)<(b)?(a):(b))
 
 #include <vector>
@@ -46,6 +47,54 @@ void display_splash(){
 	printf("																												\n");
 }
 
+void print_arr(char* arr[], int len, const char* cap){
+	printf("-------------\n");
+	for (int i =0 ; i < len; ++i){
+		printf("%s[%d] = %s\n", cap, i, arr[i]);
+	}
+	printf("-------------\n");
+}
+
+bool cmd_exists(const char* cmd, char* varPath, char* path){
+	if (!path)
+		return false;
+	if(strchr(cmd, '/')) {
+		// if cmd starts with a '/', run access directly
+        return access(cmd, X_OK)==0;
+    }
+
+    // const char *path = getenv("PATH");
+    // if(!path) return false; // something is horribly wrong...
+    // we are sure we won't need a buffer any longer
+    char *buf = (char*)malloc(strlen(path)+strlen(cmd)+3);
+    if(!buf) return false; // actually useless, see comment
+    // loop as long as we have stuff to examine in path
+    for(; *path; ++path) {
+        // start from the beginning of the buffer
+        char *p = buf;
+        // copy in buf the current path element
+        for(; *path && *path!=':'; ++path,++p) {
+            *p = *path;
+        }
+        // empty path entries are treated like "."
+        if(p==buf) *p++='.';
+        // slash and command name
+        if(p[-1]!='/') *p++='/';
+        strcpy(p, cmd);
+        // check if we can execute it
+        if(access(buf, X_OK)==0) {
+        	strcpy(varPath, buf);
+            free(buf);
+            return true;
+        }
+        // quit at last cycle
+        if(!*path) break;
+    }
+    // not found
+    free(buf);
+    return false;
+}
+
 /**
  * @brief Tokenize a C string
  *
@@ -54,7 +103,7 @@ void display_splash(){
  * @param argv - A char* array that will contain the tokenized strings
  * Make sure that you allocate enough space for the array.
  */
-int tokenize_c(char* str, const char* delim, char ** argv) {
+int tokenize(char* str, const char* delim, char ** argv) {
 	char* token;
 	token = strtok(str, delim);
 	int count = 0;
@@ -68,32 +117,26 @@ int tokenize_c(char* str, const char* delim, char ** argv) {
 
 void change_dir(char* buff[NUM_ARGS], int& buffLen){
 	if (buffLen < 2){
-		printf("%s expected argument to \"cd\"\n", SHELL);
+		perror("expected argument to chdir");
 		return;
 	}
 	if (chdir(buff[1]) == -1){
-		printf("%s No such file or directory\n", SHELL);
+		perror("unable to run chdir");
 	}
 }
 
-void update_path(char* buff[NUM_ARGS], int& buffLen, std::vector<const char*>& env){
-	/*
-		TODO - grammar check; does the given variable even exist?
-	*/
-	char* pathArgs[NUM_ARGS];
-	buffLen = tokenize_c(buff[1], ":", pathArgs);
-	if (buffLen == 0){
-		printf("Please provide the argument to run the command.\n");
-		return;
-	}
-	if (strcmp(pathArgs[0], "$PATH") == 0 or pathArgs[0][0] == '$'){
-		// append
-		env.push_back(pathArgs[1]);
+void show_path(char* env){
+	printf("Current PATH: %s\n", env);
+}
+
+void update_path(char* env, const char* var, bool overwrite){
+	if (!overwrite){
+		if (strlen(env) >= 2)
+			strcat(env, ":");
+		strcat(env, var);
 	}
 	else{
-		// overwrite
-		env.clear();
-		env.push_back(pathArgs[0]);
+		strcpy(env, var);
 	}
 }
 
@@ -127,57 +170,63 @@ void run_child_bg(char* buff[NUM_ARGS], int& buffLen){
 	_exit(1);
 }
 
-void run_child(char* buff[NUM_ARGS], int& procLen, int& fileDcpt){
+void run_child(char* buff[NUM_ARGS], int& procLen, char* env, int& envSize){
+	printf("running child...\n");
 	char* proc[procLen];
 	for (int i = 0; i < procLen; ++i){
 		proc[i] = buff[i];
-	}
-	proc[procLen] = NULL;
-	if (fileDcpt > 0){
-		dup2(fileDcpt, 1);	// redirect output to file
-	}
-	execvp(proc[0], proc);
-}
-
-void run_cmd(char* arg, std::vector<int>& backProc, std::vector<const char*>& env){
-	char* buff[NUM_ARGS];
-	char procArgs[NUM_ARGS];
-	strcpy(procArgs, arg);
-
-	int len = tokenize_c(arg, "\n", buff);
-	printf("arg = %s\n", arg);
-	
-	len = tokenize_c(arg, " ", buff);
-	printf("arg = %s\n", procArgs);
-
-	char* pipeArgs[NUM_ARGS];
-	int pipeLen = 0;
-	pipeLen = tokenize_c(procArgs, "|", pipeArgs);
-	for (int i = 0; i < pipeLen; ++i){
-		printf("pipeArgs[%d] = %s\n", i,  pipeArgs[i]);
-	}
-
-	// expected NULL by system calls
-	buff[len] = NULL;
-	for (int i =0 ; i < len; ++i){
 		printf("buff[%d] = %s\n", i, buff[i]);
 	}
+	proc[procLen] = NULL;
+
+
+	// char* newargv[] = {(char*)NULL, (char*)"hello", (char*)"world",(char*) NULL};
+	char* newenv[] = {NULL};
+
+	// char* na[] = {"./hex", (char*)0};
+
+	// execvp(na[0], na);
+}
+
+void run_cmd(char* arg, char* env){
+	/*
+		arg: raw command from user input, ignoring '\n'
+		procArgs:
+		buff: 
+	*/
+	
+	
+	char* buff[NUM_ARGS];
+	int len = tokenize(arg, " ", buff);
+	buff[len] = NULL;
+
+	// char* pipeArgs[NUM_ARGS];
+	// int pipeLen = 0;
+	// pipeLen = tokenize(procArgs, "|", pipeArgs);
+	// for (int i = 0; i < pipeLen; ++i){
+	// 	printf("pipeArgs[%d] = %s\n", i,  pipeArgs[i]);
+	// }
 
 	// change directory
 	if (strcmp(buff[0], "cd") == 0){
 		change_dir(buff, len);
 	}
+	else if (strcmp(buff[0], "pwd") == 0){
+		char* cwd = get_current_dir_name();
+		printf("%s\n", cwd);
+		free(cwd);
+	}
 	else if (strcmp(buff[0], "$PATH") == 0){
-		printf("Current PATH: ");
-		for (int i = 0; i < env.size(); ++i){
-			printf("%s", env[i]);
-			if (i < env.size()-1)
-				printf(":");
-		}
-		printf("\n");
+		show_path(env);
 	}
 	else if (strcmp(buff[0], "a2path") == 0){
-		update_path(buff, len, env);
+		char* args[ENV_LEN];
+		int argLen = tokenize(buff[1], ":", args);
+		print_arr(buff, len, "buff");
+		print_arr(args, argLen, "args");
+		for (int i = 1; i < argLen; ++i){
+			update_path(env, args[i], strcmp(args[0], "$PATH"));
+		}
 	}
 	else if (strcmp(buff[0], "exit") == 0){
 		printf("Thanks for using the dragonshell.\n");
@@ -186,42 +235,22 @@ void run_cmd(char* arg, std::vector<int>& backProc, std::vector<const char*>& en
 
 	// execute command
 	else if (len){
-
-		// check if this process redirects
-		int redirIndex = 0;
-		int fileDcpt = 0;
+		char varPath[FNAME_SIZE];
 		int procLen = len+1;
-		bool openFile = false;
-		if (len >= 3){
-			while (redirIndex < len){
-				if (buff[redirIndex][0] == '>'){
-					openFile = true;
-					break;
-				}
-				redirIndex++;
-			}
-			procLen = redirIndex;
-		}
 
-		// check if this process pipes bytes between processes
-		char* pipeArgs[2];
-		//len = tokenize()
-		
+		if (!cmd_exists(buff[0], varPath, env)){
+			printf("%s could not be identified.\n", buff[0]);
+			return;
+		}
 		pid_t pid = fork();
 		if (pid == 0){
-
-			// set up the target file for redirection, if specified
-			if (openFile){
-				fileDcpt = open(buff[redirIndex+1], O_CREAT | O_RDWR);
-				printf("opening file descriptor %s\n", buff[redirIndex+1]);
-				printf("redirIndex = %d\n", redirIndex);
-			}
-
 			if (buff[len-1][0] == '&'){
 				run_child_bg(buff, len);
 			}
 			else{
-				run_child(buff, procLen, fileDcpt);
+				if (execve(varPath, buff, NULL) == -1){
+					perror("foo");
+				}
 			}
 		}
 
@@ -229,13 +258,10 @@ void run_cmd(char* arg, std::vector<int>& backProc, std::vector<const char*>& en
 			if (buff[len-1] != "&"){
 				waitpid(pid, NULL, 0);
 			}
-			if (fileDcpt > 0)
-				close(fileDcpt);
 		}
 		else{
 			printf("Child process could not be created.\n");
 		}
-
 	}
 }
 
@@ -243,13 +269,14 @@ int main(int argc, char **argv) {
 	// print the string prompt without a newline, before beginning to read
 	// tokenize the input, run the command(s), and print the result
 	// do this in a loop
-	char 	cmd[MAX_LEN];
+	char 	cmd	[MAX_LEN];
 	char* 	jobs[MAX_JOBS];
-	std::vector<const char*> env({"/bin/", "/usr/bin/"});
-	std::vector<int> backProc;
-	
+	char 	env	[ENV_LEN * FNAME_SIZE];
+
+	update_path(env, "/usr/bin", true);
+	update_path(env, "/bin/", false);
+
 	display_splash();
-	
 	while (1){
 		
 		#ifdef beta
@@ -259,12 +286,11 @@ int main(int argc, char **argv) {
 		#endif
 
 		fgets(cmd, MAX_LEN, stdin);
-		tokenize_c(cmd, "\n", jobs);
-		int numJobs = tokenize_c(cmd, ";", jobs);
+		tokenize(cmd, "\n", jobs);
+		int numJobs = tokenize(cmd, ";", jobs);
 		for (int i = 0; i < numJobs; ++i){
-			run_cmd(jobs[i], backProc, env);
+			run_cmd(jobs[i], env);
 		}
-
 	}
 
 	return 0;
