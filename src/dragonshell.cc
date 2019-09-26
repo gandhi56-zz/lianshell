@@ -229,6 +229,9 @@ void run_cmd(char* arg, char* env){
 			}
 			else{
 				if (runFromPath){
+					print_arr(buff, len, "buff");
+					buff[0] = varPath;
+					print_arr(buff, len, "buff");
 					if (execve(varPath, buff, NULL) == -1){
 						perror("foo");
 					}
