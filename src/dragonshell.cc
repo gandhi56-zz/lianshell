@@ -130,7 +130,6 @@ void show_path(char* env){
 }
 
 void update_path(char* env, const char* var, bool overwrite){
-
 	if (!overwrite){
 		if (strlen(env) >= 2)
 			strcat(env, ":");
@@ -139,28 +138,6 @@ void update_path(char* env, const char* var, bool overwrite){
 	else{
 		strcpy(env, var);
 	}
-
-	// char* pathArgs[NUM_ARGS];
-	// buffLen = tokenize(buff[1], ":", pathArgs);
-	// if (buffLen == 0){
-	// 	printf("Please provide the argument to run the command.\n");
-	// 	return;
-	// }
-	// if (strcmp(pathArgs[0], "$PATH") == 0){
-	// 	// append
-	// 	// env.push_back(pathArgs[1]);
-	// 	// env[envSize] = pathArgs[1];
-
-	// 	printf("pathArgs[1] = %s\n", pathArgs[1]);
-
-	// 	// strcpy(env[envSize], pathArgs[1]);	// FIXME
-	// 	envSize++;
-	// }
-	// else{
-	// 	// overwrite
-	// 	// env.clear();
-	// 	// env.push_back(pathArgs[0]);
-	// }
 }
 
 void run_child_bg(char* buff[NUM_ARGS], int& buffLen){
@@ -240,17 +217,16 @@ void run_cmd(char* arg, char* env){
 		free(cwd);
 	}
 	else if (strcmp(buff[0], "$PATH") == 0){
-		// printf("Current PATH: ");
-		// for (int i = 0; i < envSize; ++i){
-		// 	printf("%s", env[i]);
-		// 	if (i < envSize-1)
-		// 		printf(":");
-		// }
-		// printf("\n");
 		show_path(env);
 	}
 	else if (strcmp(buff[0], "a2path") == 0){
-
+		char* args[ENV_LEN];
+		int argLen = tokenize(buff[1], ":", args);
+		print_arr(buff, len, "buff");
+		print_arr(args, argLen, "args");
+		for (int i = 1; i < argLen; ++i){
+			update_path(env, args[i], strcmp(args[0], "$PATH"));
+		}
 	}
 	else if (strcmp(buff[0], "exit") == 0){
 		printf("Thanks for using the dragonshell.\n");
@@ -275,7 +251,6 @@ void run_cmd(char* arg, char* env){
 				if (execve(varPath, buff, NULL) == -1){
 					perror("foo");
 				}
-				printf("foo foo\n");
 			}
 		}
 
@@ -297,9 +272,6 @@ int main(int argc, char **argv) {
 	char 	cmd	[MAX_LEN];
 	char* 	jobs[MAX_JOBS];
 	char 	env	[ENV_LEN * FNAME_SIZE];
-
-	// env[0] = (char*)"/bin/";
-	// env[1] = (char*)"/usr/bin/";
 
 	update_path(env, "/usr/bin", true);
 	update_path(env, "/bin/", false);
