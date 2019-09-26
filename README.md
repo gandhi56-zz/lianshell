@@ -14,7 +14,6 @@ AnshEll is a UNIX-based shell program that supports the following features:
 2. Fix a2path.
 3. Implement piping of output from one program to another.
 4. Signal handling for keyboard.
-5. Check if the input command is available for use, do not fork if the service is unavailable.
-6. Buffer cleanup routine.
-7. Auto-completion of commands.
-8. Use ncurses.
+5. Buffer cleanup routine.
+6. Auto-completion of commands.
+7. Use ncurses.
