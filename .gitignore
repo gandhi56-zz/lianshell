@@ -7,3 +7,10 @@ Makefile
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
+hex
+execve_example/execve
+execve_example/execve.c
+execve_example/myecho
+execve_example/myecho.c
+execve_example/script
+src/backup.txt
