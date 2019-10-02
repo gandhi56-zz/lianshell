@@ -17,3 +17,4 @@ AnshEll is a UNIX-based shell program that supports the following features:
 7. Buffer cleanup routine.
 8. Auto-completion of commands.
 9. Use ncurses.
+10. TERM environment variable is shown to be not set, unable to run 'clear'.

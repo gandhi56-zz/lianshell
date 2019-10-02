@@ -1,6 +1,4 @@
 
-// TODO when an invalid command is entered, a child process is created executing the dragonshell from fork()...
-
 //#define beta
 #define SHELL 			"dragonshell: "
 #define MAX_LEN			120
@@ -165,11 +163,6 @@ void run_child_bg(char* buff[NUM_ARGS], int& buffLen){
 }
 
 void run_cmd(char* arg, char* env){
-	/*
-		arg: raw command from user input, ignoring '\n'
-		procArgs:
-		buff: 
-	*/
 	
 	
 	char* buff[NUM_ARGS];
@@ -212,9 +205,11 @@ void run_cmd(char* arg, char* env){
 	// execute command
 	else if (len){
 		char varPath[FNAME_SIZE];
-		int procLen = len+1;
 		bool runFromPath = true;
+		bool runInBackground = false;
+		int fd;
 
+		// parse and modify location of filename --------------------------------------------
 		if (buff[0][0] == '.'){
 			runFromPath = false;
 		}
@@ -222,31 +217,81 @@ void run_cmd(char* arg, char* env){
 			printf("%s could not be identified.\n", buff[0]);
 			return;
 		}
+		if (runFromPath){
+			buff[0] = varPath;
+		}
+		// ---------------------------------------------------------------------------------
+
+		#ifdef BACKPROC
+		// check if the process needs to be run in the background --------------------------
+		int procLen = 0;
+		for (int i = 0; i < len; ++i){
+			if (strcmp(buff[i], "&") == 0){
+				buff[i] = (char*)NULL;
+				runInBackground = true;
+				procLen = i;
+				break;
+			}
+		}
+
+		char* proc[procLen+1];
+		for (int i = 0; i < procLen; ++i){
+			proc[i] = buff[i];
+		}
+		proc[procLen] = (char*)NULL;
+		// ----------------------------------------------------------------------------------
+		#endif
+
+		print_arr(buff, len, "buff");
+
+		bool outToFile = false;
+		char filename[FNAME_SIZE];
+		for (int i = 0; i < len; ++i){
+			if (strcmp(buff[i], ">") == 0){
+				// set filename here
+				strcpy(filename, buff[i+1]);
+				outToFile = true;
+				break;
+			}
+		}
+
 		pid_t pid = fork();
 		if (pid == 0){
-			if (buff[len-1][0] == '&'){
-				run_child_bg(buff, len);
+			if (runInBackground){
+				#ifdef BACKPROC
+				// TODO
+				// run_child_bg(buff, len);
+				printf("running job in background\n");
+				int fd = open("tmp.txt", O_RDONLY, 0);
+				dup2(fd, STDOUT_FILENO);
+				close(0);
+				if (execve(proc[0], proc, NULL) == -1){
+					perror("execve from PATH");
+				}
+				#endif
 			}
 			else{
-				if (runFromPath){
-					print_arr(buff, len, "buff");
-					buff[0] = varPath;
-					print_arr(buff, len, "buff");
-					if (execve(varPath, buff, NULL) == -1){
-						perror("foo");
+				if (outToFile){
+					printf("outputting to file...\n");
+					fd  = open(filename, O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+					if (fd == -1){
+						perror("open");
+						return;
 					}
+					write(fd, "Hello world of dragons!\n", strlen("Hello world of dragons!\n"));
 				}
 				else{
 					if (execve(buff[0], buff, NULL) == -1){
-						perror("foo");
+						perror("execve");
 					}
 				}
 			}
 		}
 
 		else if (pid > 0){
-			if (buff[len-1] != "&"){
-				waitpid(pid, NULL, 0);
+			waitpid(pid, NULL, 0);
+			if (fd){
+				close(fd);
 			}
 		}
 		else{
