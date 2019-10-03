@@ -20,8 +20,7 @@
 #include <signal.h>
 
 // global variables
-// std::map<pid_t, bool> childProcesses;
-
+pid_t childPid = 0;
 
 void display_splash(){
 	printf("                                   ______________                                           					\n");
@@ -172,7 +171,6 @@ void run_child_bg(char* cmd[NUM_ARGS], int& buffLen){
 void output_redirection(char* arg, char* env){
 	// check if this is a background process
 	bool runInBackground = (bool)(strchr(arg, '&') != NULL);
-
 	char* cmd[NUM_ARGS];
 	int cmdLen = tokenize(arg, ">", cmd);
 	cmd[cmdLen] = NULL;
@@ -194,29 +192,57 @@ void output_redirection(char* arg, char* env){
 
 	// execute process
 	int fd = -1;
-	pid_t pid = fork();
-	if (pid == 0){
-		// strip whitespaces from the left
-		int i = 0;
-		while (cmd[1][i] == ' ')	i++;
-		char fname[strlen(cmd[1]) - i + 1];
-		for (int k = 0; k < strlen(cmd[1])-i; ++k){
-			fname[k] = cmd[1][k+i];
+
+	if (runInBackground){
+		pid_t pid = fork();
+		if (pid == 0){
+			// strip whitespaces from the left
+			int i = 0;
+			while (cmd[1][i] == ' ')	i++;
+			char* fname[NUM_ARGS];
+			char* ffname[NUM_ARGS];
+			tokenize(cmd[1], "&", fname);
+			tokenize(fname[0], " ", ffname);
+			fd = open(ffname[0], O_CREAT | O_RDWR, 0666);
+			dup2(fd, STDOUT_FILENO);
+			if (execve(process[0], process, NULL) == -1){
+				perror("execve");
+				_exit(-1);
+			}
+			close(fd);
 		}
-		fname[strlen(cmd[1]) - i] = (char)NULL;
-		fd = open(fname, O_CREAT | O_RDWR, 0666);
-		dup2(fd, STDOUT_FILENO);
-		if (execve(process[0], process, NULL) == -1){
-			perror("execve");
-			_exit(-1);
+		else if (pid > 0){
+			waitpid(pid, NULL, 0);
 		}
-		close(fd);
-	}
-	else if (pid > 0){
-		waitpid(pid, NULL, 0);
+		else{
+			printf("Child process could not be created.\n");
+		}
 	}
 	else{
-		printf("Child process could not be created.\n");
+		pid_t pid = fork();
+		if (pid == 0){
+			// strip whitespaces from the left
+			int i = 0;
+			while (cmd[1][i] == ' ')	i++;
+			char fname[strlen(cmd[1]) - i + 1];
+			for (int k = 0; k < strlen(cmd[1])-i; ++k){
+				fname[k] = cmd[1][k+i];
+			}
+			fname[strlen(cmd[1]) - i] = (char)NULL;
+			fd = open(fname, O_CREAT | O_RDWR, 0666);
+			dup2(fd, STDOUT_FILENO);
+			if (execve(process[0], process, NULL) == -1){
+				perror("execve");
+				_exit(-1);
+			}
+			close(fd);
+		}
+		else if (pid > 0){
+			waitpid(pid, NULL, 0);
+		}
+		else{
+			printf("Child process could not be created.\n");
+		}
 	}
 }
 
@@ -262,15 +288,12 @@ void run_process(char* cmd[NUM_ARGS], int cmdLen, char* env){
 	if (runInBackground){
 		// execute process
 		pid_t pid = fork();
-		// childProcesses[pid] = true;
 		if (pid == 0){
 			close(STDOUT_FILENO);
 			close(STDERR_FILENO);
 			if (execve(cmd[0], cmd, NULL) == -1){
 				perror("execve");
 			}
-			// childProcesses[pid] = false;
-			// _exit(1);
 		}
 		else if (pid > 0){
 			printf("PID %d is running in the background\n", pid);
@@ -283,14 +306,13 @@ void run_process(char* cmd[NUM_ARGS], int cmdLen, char* env){
 	else{
 		// execute process
 		pid_t pid = fork();
-		// childProcesses[pid] = true;
 		if (pid == 0){
 			if (execve(cmd[0], cmd, NULL) == -1){
 				perror("execve");
 			}
-			// childProcesses[pid] = false;
 		}
 		else if (pid > 0){
+			childPid = pid;
 			waitpid(pid, NULL, 0);
 		}
 		else{
@@ -345,16 +367,11 @@ void run_cmd(char* arg, char* env){
 // signal handling ----------------------------------------------------------------
 void sigint_handler(int signum){
 	// send sigint to child processes
-	/*
-	for (auto it : childProcesses){
-		if (it.second){
-			printf("sending SIGINT to %d...\n", it.first);
-			if (kill(it.first, SIGINT) == -1){
-				perror("kill");
-			}
-		}
+	if (childPid){
+		printf("killing child\n");
+		if (kill(childPid, SIGINT) == -1)
+			perror("kill");
 	}
-	*/
 }
 
 void sigtstp_handler(int signum){
@@ -395,18 +412,15 @@ int main(int argc, char **argv) {
 			printf("dragonshell [%d]: > ", getpid());
 		#endif
 
-		// for (auto it : childProcesses){
-		// 	printf("child %d\n", it.first);
-		// }
-
+		childPid = 0;
 		fgets(cmd, MAX_LEN, stdin);
 		tokenize(cmd, "\n", jobs);
 		int numJobs = tokenize(cmd, ";", jobs);
 		for (int i = 0; i < numJobs; ++i){
 			run_cmd(jobs[i], env);
 		}
+		printf("childPid = %d\n", childPid);
 	}
-	// childProcesses.clear();
 
 	return 0;
 }
