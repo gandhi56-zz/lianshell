@@ -138,32 +138,35 @@ void update_path(char* env, const char* var, bool overwrite){
 
 void run_child_bg(char* cmd[NUM_ARGS], int& buffLen){
 	printf("Putting job %d in the background.\n", getpid());
-	int cmdLen = 0;
-	for (int i = 0; i < buffLen; ++i){
-		cmdLen += strlen(cmd[i]);
-	}
+	// int cmdLen = 0;
+	// for (int i = 0; i < buffLen; ++i){
+	// 	cmdLen += strlen(cmd[i]);
+	// }
 
-	char proc[cmdLen];
-	int k =0 ;
-	for (int i = 0; i < buffLen; ++i){
-		strcpy(&proc[k], cmd[i]);
-	}
+	// char proc[cmdLen];
+	// int k =0 ;
+	// for (int i = 0; i < buffLen; ++i){
+	// 	strcpy(&proc[k], cmd[i]);
+	// }
 
-	//close(STDIN_FILENO);
-	//close(STDOUT_FILENO);
-	//close(STDERR_FILENO);
+	// //close(STDIN_FILENO);
+	// //close(STDOUT_FILENO);
+	// //close(STDERR_FILENO);
 
-	char* child[buffLen];
-	for (int i =0 ; i < buffLen-1; ++i)
-		child[i] = cmd[i];
-	child[buffLen-1] = NULL;
+	// char* child[buffLen];
+	// for (int i =0 ; i < buffLen-1; ++i)
+	// 	child[i] = cmd[i];
+	// child[buffLen-1] = NULL;
 
-	int x = open("/dev/null", O_RDWR);
-	printf("%d\n", x);
-	dup(x);
-	dup(x);
-	execvp(child[0], child);
-	_exit(1);
+	// int x = open("/dev/null", O_RDWR);
+	// printf("%d\n", x);
+	// dup(x);
+	// dup(x);
+	// execvp(child[0], child);
+	// _exit(1);
+
+
+
 }
 
 void output_redirection(char* arg, char* env){
@@ -193,7 +196,6 @@ void output_redirection(char* arg, char* env){
 	int fd = -1;
 	pid_t pid = fork();
 	if (pid == 0){
-
 		// strip whitespaces from the left
 		int i = 0;
 		while (cmd[1][i] == ' ')	i++;
@@ -257,20 +259,43 @@ void run_process(char* cmd[NUM_ARGS], int cmdLen, char* env){
 		cmd[cmdLen-1] = NULL;
 	}
 
-	// execute process
-	pid_t pid = fork();
-	// childProcesses[pid] = true;
-	if (pid == 0){
-		if (execve(cmd[0], cmd, NULL) == -1){
-			perror("execve");
+	if (runInBackground){
+		// execute process
+		pid_t pid = fork();
+		// childProcesses[pid] = true;
+		if (pid == 0){
+			close(STDOUT_FILENO);
+			close(STDERR_FILENO);
+			if (execve(cmd[0], cmd, NULL) == -1){
+				perror("execve");
+			}
+			// childProcesses[pid] = false;
+			// _exit(1);
 		}
-		// childProcesses[pid] = false;
-	}
-	else if (pid > 0){
-		waitpid(pid, NULL, 0);
+		else if (pid > 0){
+			printf("PID %d is running in the background\n", pid);
+			// waitpid(pid, NULL, 0);
+		}
+		else{
+			printf("Child process could not be created.\n");
+		}
 	}
 	else{
-		printf("Child process could not be created.\n");
+		// execute process
+		pid_t pid = fork();
+		// childProcesses[pid] = true;
+		if (pid == 0){
+			if (execve(cmd[0], cmd, NULL) == -1){
+				perror("execve");
+			}
+			// childProcesses[pid] = false;
+		}
+		else if (pid > 0){
+			waitpid(pid, NULL, 0);
+		}
+		else{
+			printf("Child process could not be created.\n");
+		}
 	}
 
 }
