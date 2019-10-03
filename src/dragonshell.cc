@@ -45,9 +45,9 @@ void display_splash(){
 	printf("																												\n");
 }
 
-void print_arr(char* arr[], int len, const char* cap){
+void print_arr(char* arr[], int cmdLen, const char* cap){
 	printf("-------------\n");
-	for (int i =0 ; i < len; ++i){
+	for (int i =0 ; i < cmdLen; ++i){
 		printf("%s[%d] = %s\n", cap, i, arr[i]);
 	}
 	printf("-------------\n");
@@ -107,12 +107,12 @@ int tokenize(char* str, const char* delim, char ** argv) {
 	return count;
 }
 
-void change_dir(char* buff[NUM_ARGS], int& buffLen){
+void change_dir(char* cmd[NUM_ARGS], int& buffLen){
 	if (buffLen < 2){
 		perror("expected argument to chdir");
 		return;
 	}
-	if (chdir(buff[1]) == -1){
+	if (chdir(cmd[1]) == -1){
 		perror("unable to run chdir");
 	}
 }
@@ -132,17 +132,17 @@ void update_path(char* env, const char* var, bool overwrite){
 	}
 }
 
-void run_child_bg(char* buff[NUM_ARGS], int& buffLen){
+void run_child_bg(char* cmd[NUM_ARGS], int& buffLen){
 	printf("Putting job %d in the background.\n", getpid());
 	int cmdLen = 0;
 	for (int i = 0; i < buffLen; ++i){
-		cmdLen += strlen(buff[i]);
+		cmdLen += strlen(cmd[i]);
 	}
 
 	char proc[cmdLen];
 	int k =0 ;
 	for (int i = 0; i < buffLen; ++i){
-		strcpy(&proc[k], buff[i]);
+		strcpy(&proc[k], cmd[i]);
 	}
 
 	//close(STDIN_FILENO);
@@ -151,7 +151,7 @@ void run_child_bg(char* buff[NUM_ARGS], int& buffLen){
 
 	char* child[buffLen];
 	for (int i =0 ; i < buffLen-1; ++i)
-		child[i] = buff[i];
+		child[i] = cmd[i];
 	child[buffLen-1] = NULL;
 
 	int x = open("/dev/null", O_RDWR);
@@ -162,142 +162,184 @@ void run_child_bg(char* buff[NUM_ARGS], int& buffLen){
 	_exit(1);
 }
 
+void output_redirection(char* arg, char* env){
+	printf("output redirection...\n");
+	// check if this is a background process
+}
+
+void run_pipe(char* arg, char* env){
+	printf("piping...\n");
+	// check if this is a background process
+}
+
+void run_process(char* cmd[NUM_ARGS], int cmdLen, char* env){
+	// check if this command exists
+	char varPath[MAX_LEN];
+	if (!cmd_exists(cmd[0], varPath, env)){
+		printf("%s: command not found in PATH\n", cmd[0]);
+		return;
+	}
+	cmd[0] = varPath;
+
+	// check if this process will run in the background
+	bool runInBackground = false;
+	if (strcmp(cmd[cmdLen-1], "&") == 0){
+		runInBackground = true;
+		cmd[cmdLen-1] = NULL;
+	}
+
+	pid_t pid = fork();
+	if (pid == 0){
+		if (execve(cmd[0], cmd, NULL) == -1){
+			perror("execve");
+		}
+	}
+	else if (pid > 0){
+		waitpid(pid, NULL, 0);
+	}
+	else{
+		printf("Child process could not be created.\n");
+	}
+
+}
+
 void run_cmd(char* arg, char* env){
-	
-	
-	char* buff[NUM_ARGS];
-	int len = tokenize(arg, " ", buff);
-	buff[len] = NULL;
+	if (strchr(arg, '>') != NULL){
+		output_redirection(arg, env);
+	}
+	else if (strchr(arg, '|') != NULL){
+		run_pipe(arg, env);
+	}
+	else{
+		char* cmd[NUM_ARGS];
+		int cmdLen = tokenize(arg, " ", cmd);
+		cmd[cmdLen] = NULL;
 
-	// char* pipeArgs[NUM_ARGS];
-	// int pipeLen = 0;
-	// pipeLen = tokenize(procArgs, "|", pipeArgs);
-	// for (int i = 0; i < pipeLen; ++i){
-	// 	printf("pipeArgs[%d] = %s\n", i,  pipeArgs[i]);
+		if (strcmp(cmd[0], "cd") == 0){
+			change_dir(cmd, cmdLen);
+		}
+		else if (strcmp(cmd[0], "pwd") == 0){
+			char* cwd = get_current_dir_name();
+			printf("%s\n", cwd);
+			free(cwd);
+		}
+		else if (strcmp(cmd[0], "$PATH") == 0){
+			show_path(env);
+		}
+		else if (strcmp(cmd[0], "a2path") == 0){
+			char* args[ENV_LEN];
+			int argLen = tokenize(cmd[1], ":", args);
+			print_arr(cmd, cmdLen, "cmd");
+			print_arr(args, argLen, "args");
+			for (int i = 1; i < argLen; ++i){
+				update_path(env, args[i], strcmp(args[0], "$PATH"));
+			}
+		}
+		else if (strcmp(cmd[0], "exit") == 0){
+			printf("Thanks for using the dragonshell.\n");
+			_exit(0);
+		}
+		else {
+			run_process(cmd, cmdLen, env);
+		}
+	}
+
+	// // execute command
+	// else if (cmdLen){
+	// 	char varPath[FNAME_SIZE];
+	// 	bool runFromPath = true;
+	// 	bool runInBackground = false;
+	// 	int fd;
+
+	// 	// parse and modify location of filename --------------------------------------------
+	// 	if (cmd[0][0] == '.'){
+	// 		runFromPath = false;
+	// 	}
+	// 	if (runFromPath and !cmd_exists(cmd[0], varPath, env)){
+	// 		printf("%s could not be identified.\n", cmd[0]);
+	// 		return;
+	// 	}
+	// 	if (runFromPath){
+	// 		cmd[0] = varPath;
+	// 	}
+	// 	// ---------------------------------------------------------------------------------
+
+	// 	#ifdef BACKPROC
+	// 	// check if the process needs to be run in the background --------------------------
+	// 	int procLen = 0;
+	// 	for (int i = 0; i < cmdLen; ++i){
+	// 		if (strcmp(cmd[i], "&") == 0){
+	// 			cmd[i] = (char*)NULL;
+	// 			runInBackground = true;
+	// 			procLen = i;
+	// 			break;
+	// 		}
+	// 	}
+
+	// 	char* proc[procLen+1];
+	// 	for (int i = 0; i < procLen; ++i){
+	// 		proc[i] = cmd[i];
+	// 	}
+	// 	proc[procLen] = (char*)NULL;
+	// 	// ----------------------------------------------------------------------------------
+	// 	#endif
+
+	// 	print_arr(cmd, cmdLen, "cmd");
+
+	// 	bool outToFile = false;
+	// 	char filename[FNAME_SIZE];
+	// 	for (int i = 0; i < cmdLen; ++i){
+	// 		if (strcmp(cmd[i], ">") == 0){
+	// 			// set filename here
+	// 			strcpy(filename, cmd[i+1]);
+	// 			outToFile = true;
+	// 			break;
+	// 		}
+	// 	}
+
+	// 	pid_t pid = fork();
+	// 	if (pid == 0){
+	// 		if (runInBackground){
+	// 			#ifdef BACKPROC
+	// 			// TODO
+	// 			// run_child_bg(cmd, cmdLen);
+	// 			printf("running job in background\n");
+	// 			int fd = open("tmp.txt", O_RDONLY, 0);
+	// 			dup2(fd, STDOUT_FILENO);
+	// 			close(0);
+	// 			if (execve(proc[0], proc, NULL) == -1){
+	// 				perror("execve from PATH");
+	// 			}
+	// 			#endif
+	// 		}
+	// 		else{
+	// 			if (outToFile){
+	// 				printf("outputting to file...\n");
+	// 				fd  = open(filename, O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+	// 				if (fd == -1){
+	// 					perror("open");
+	// 					return;
+	// 				}
+	// 				write(fd, "Hello world of dragons!\n", strlen("Hello world of dragons!\n"));
+	// 			}
+	// 			else{
+	// 				if (execve(cmd[0], cmd, NULL) == -1){
+	// 					perror("execve");
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+
+	// 	else if (pid > 0){
+	// 		waitpid(pid, NULL, 0);
+	// 		if (fd){
+	// 			close(fd);
+	// 		}
+	// 	}
+	// 	else{
+	// 		printf("Child process could not be created.\n");
+	// 	}
 	// }
-
-	// change directory
-	if (strcmp(buff[0], "cd") == 0){
-		change_dir(buff, len);
-	}
-	else if (strcmp(buff[0], "pwd") == 0){
-		char* cwd = get_current_dir_name();
-		printf("%s\n", cwd);
-		free(cwd);
-	}
-	else if (strcmp(buff[0], "$PATH") == 0){
-		show_path(env);
-	}
-	else if (strcmp(buff[0], "a2path") == 0){
-		char* args[ENV_LEN];
-		int argLen = tokenize(buff[1], ":", args);
-		print_arr(buff, len, "buff");
-		print_arr(args, argLen, "args");
-		for (int i = 1; i < argLen; ++i){
-			update_path(env, args[i], strcmp(args[0], "$PATH"));
-		}
-	}
-	else if (strcmp(buff[0], "exit") == 0){
-		printf("Thanks for using the dragonshell.\n");
-		_exit(0);
-	}
-
-	// execute command
-	else if (len){
-		char varPath[FNAME_SIZE];
-		bool runFromPath = true;
-		bool runInBackground = false;
-		int fd;
-
-		// parse and modify location of filename --------------------------------------------
-		if (buff[0][0] == '.'){
-			runFromPath = false;
-		}
-		if (runFromPath and !cmd_exists(buff[0], varPath, env)){
-			printf("%s could not be identified.\n", buff[0]);
-			return;
-		}
-		if (runFromPath){
-			buff[0] = varPath;
-		}
-		// ---------------------------------------------------------------------------------
-
-		#ifdef BACKPROC
-		// check if the process needs to be run in the background --------------------------
-		int procLen = 0;
-		for (int i = 0; i < len; ++i){
-			if (strcmp(buff[i], "&") == 0){
-				buff[i] = (char*)NULL;
-				runInBackground = true;
-				procLen = i;
-				break;
-			}
-		}
-
-		char* proc[procLen+1];
-		for (int i = 0; i < procLen; ++i){
-			proc[i] = buff[i];
-		}
-		proc[procLen] = (char*)NULL;
-		// ----------------------------------------------------------------------------------
-		#endif
-
-		print_arr(buff, len, "buff");
-
-		bool outToFile = false;
-		char filename[FNAME_SIZE];
-		for (int i = 0; i < len; ++i){
-			if (strcmp(buff[i], ">") == 0){
-				// set filename here
-				strcpy(filename, buff[i+1]);
-				outToFile = true;
-				break;
-			}
-		}
-
-		pid_t pid = fork();
-		if (pid == 0){
-			if (runInBackground){
-				#ifdef BACKPROC
-				// TODO
-				// run_child_bg(buff, len);
-				printf("running job in background\n");
-				int fd = open("tmp.txt", O_RDONLY, 0);
-				dup2(fd, STDOUT_FILENO);
-				close(0);
-				if (execve(proc[0], proc, NULL) == -1){
-					perror("execve from PATH");
-				}
-				#endif
-			}
-			else{
-				if (outToFile){
-					printf("outputting to file...\n");
-					fd  = open(filename, O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-					if (fd == -1){
-						perror("open");
-						return;
-					}
-					write(fd, "Hello world of dragons!\n", strlen("Hello world of dragons!\n"));
-				}
-				else{
-					if (execve(buff[0], buff, NULL) == -1){
-						perror("execve");
-					}
-				}
-			}
-		}
-
-		else if (pid > 0){
-			waitpid(pid, NULL, 0);
-			if (fd){
-				close(fd);
-			}
-		}
-		else{
-			printf("Child process could not be created.\n");
-		}
-	}
 }
 
 int main(int argc, char **argv) {
