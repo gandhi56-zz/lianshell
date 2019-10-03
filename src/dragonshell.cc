@@ -164,7 +164,58 @@ void run_child_bg(char* cmd[NUM_ARGS], int& buffLen){
 
 void output_redirection(char* arg, char* env){
 	printf("output redirection...\n");
+
 	// check if this is a background process
+	bool runInBackground = (bool)(strchr(arg, '&') != NULL);
+
+	char* cmd[NUM_ARGS];
+	int cmdLen = tokenize(arg, ">", cmd);
+	cmd[cmdLen] = NULL;
+
+	print_arr(cmd, cmdLen, "cmd");
+	// cmd[0] = process
+	// cmd[1] = output file name
+
+	// check if this command exists
+	char* process[strlen(cmd[0])];
+	int processLen = tokenize(cmd[0], " ", process);
+	char varPath[MAX_LEN];
+	if (!cmd_exists(process[0], varPath, env)){
+		printf("%s: command not found in PATH\n", cmd[0]);
+		return;
+	}
+	process[0] = varPath;
+	process[processLen] = NULL;
+
+	// execute process
+	int fd = -1;
+	pid_t pid = fork();
+	if (pid == 0){
+
+		// strip whitespaces from the left
+		int i = 0;
+		while (cmd[1][i] == ' ')	i++;
+		char fname[strlen(cmd[1]) - i + 1];
+		for (int k = 0; k < strlen(cmd[1])-i; ++k){
+			fname[k] = cmd[1][k+i];
+		}
+		fname[strlen(cmd[1]) - i] = (char)NULL;
+		printf("creating file named |%s|\n", fname);
+
+		fd = open(fname, O_CREAT | O_RDWR);
+		dup2(fd, STDOUT_FILENO);
+		if (execve(process[0], process, NULL) == -1){
+			perror("execve");
+			_exit(-1);
+		}
+		close(fd);
+	}
+	else if (pid > 0){
+		waitpid(pid, NULL, 0);
+	}
+	else{
+		printf("Child process could not be created.\n");
+	}
 }
 
 void run_pipe(char* arg, char* env){
@@ -188,6 +239,7 @@ void run_process(char* cmd[NUM_ARGS], int cmdLen, char* env){
 		cmd[cmdLen-1] = NULL;
 	}
 
+	// execute process
 	pid_t pid = fork();
 	if (pid == 0){
 		if (execve(cmd[0], cmd, NULL) == -1){
