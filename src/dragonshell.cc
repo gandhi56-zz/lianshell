@@ -367,11 +367,6 @@ void run_cmd(char* arg, char* env){
 // signal handling ----------------------------------------------------------------
 void sigint_handler(int signum){
 	// send sigint to child processes
-	if (childPid){
-		printf("killing child\n");
-		if (kill(childPid, SIGINT) == -1)
-			perror("kill");
-	}
 }
 
 void sigtstp_handler(int signum){
@@ -417,9 +412,11 @@ int main(int argc, char **argv) {
 		tokenize(cmd, "\n", jobs);
 		int numJobs = tokenize(cmd, ";", jobs);
 		for (int i = 0; i < numJobs; ++i){
+			if (strcmp(jobs[i], "\n") == 0 or strcmp(jobs[i], " ") == 0)
+				continue;
 			run_cmd(jobs[i], env);
 		}
-		printf("childPid = %d\n", childPid);
+		// printf("childPid = %d\n", childPid);
 	}
 
 	return 0;
