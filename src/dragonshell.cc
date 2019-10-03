@@ -8,7 +8,7 @@
 #define FNAME_SIZE		32
 #define getmin(a,b) 	((a)<(b)?(a):(b))
 
-#include <vector>
+#include <map>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>	// system calls
@@ -17,6 +17,10 @@
 #include <stdio.h>
 #include <iostream>
 #include <fcntl.h>
+#include <signal.h>
+
+// global variables
+// std::map<pid_t, bool> childProcesses;
 
 
 void display_splash(){
@@ -163,8 +167,6 @@ void run_child_bg(char* cmd[NUM_ARGS], int& buffLen){
 }
 
 void output_redirection(char* arg, char* env){
-	printf("output redirection...\n");
-
 	// check if this is a background process
 	bool runInBackground = (bool)(strchr(arg, '&') != NULL);
 
@@ -172,7 +174,7 @@ void output_redirection(char* arg, char* env){
 	int cmdLen = tokenize(arg, ">", cmd);
 	cmd[cmdLen] = NULL;
 
-	print_arr(cmd, cmdLen, "cmd");
+	// print_arr(cmd, cmdLen, "cmd");
 	// cmd[0] = process
 	// cmd[1] = output file name
 
@@ -181,7 +183,7 @@ void output_redirection(char* arg, char* env){
 	int processLen = tokenize(cmd[0], " ", process);
 	char varPath[MAX_LEN];
 	if (!cmd_exists(process[0], varPath, env)){
-		printf("%s: command not found in PATH\n", cmd[0]);
+		printf("%s: command not found in PATH during redirection\n", cmd[0]);
 		return;
 	}
 	process[0] = varPath;
@@ -200,9 +202,7 @@ void output_redirection(char* arg, char* env){
 			fname[k] = cmd[1][k+i];
 		}
 		fname[strlen(cmd[1]) - i] = (char)NULL;
-		printf("creating file named |%s|\n", fname);
-
-		fd = open(fname, O_CREAT | O_RDWR);
+		fd = open(fname, O_CREAT | O_RDWR, 0666);
 		dup2(fd, STDOUT_FILENO);
 		if (execve(process[0], process, NULL) == -1){
 			perror("execve");
@@ -221,6 +221,24 @@ void output_redirection(char* arg, char* env){
 void run_pipe(char* arg, char* env){
 	printf("piping...\n");
 	// check if this is a background process
+
+	int fd[2];
+	char str[] = "hello, world 1234\n";
+	char readBuffer[100];
+	pipe(fd);
+	pid_t pid = fork();
+    if (pid == 0){
+        // child process
+        close(fd[0]);
+        write(fd[1], str, (strlen(str)+1));
+        _exit(0);
+    }
+    else{
+        close(fd[1]);
+        int nbytes = read(fd[0], readBuffer, sizeof(readBuffer));
+        printf("received: %s", readBuffer);
+    }
+
 }
 
 void run_process(char* cmd[NUM_ARGS], int cmdLen, char* env){
@@ -241,10 +259,12 @@ void run_process(char* cmd[NUM_ARGS], int cmdLen, char* env){
 
 	// execute process
 	pid_t pid = fork();
+	// childProcesses[pid] = true;
 	if (pid == 0){
 		if (execve(cmd[0], cmd, NULL) == -1){
 			perror("execve");
 		}
+		// childProcesses[pid] = false;
 	}
 	else if (pid > 0){
 		waitpid(pid, NULL, 0);
@@ -295,104 +315,27 @@ void run_cmd(char* arg, char* env){
 			run_process(cmd, cmdLen, env);
 		}
 	}
-
-	// // execute command
-	// else if (cmdLen){
-	// 	char varPath[FNAME_SIZE];
-	// 	bool runFromPath = true;
-	// 	bool runInBackground = false;
-	// 	int fd;
-
-	// 	// parse and modify location of filename --------------------------------------------
-	// 	if (cmd[0][0] == '.'){
-	// 		runFromPath = false;
-	// 	}
-	// 	if (runFromPath and !cmd_exists(cmd[0], varPath, env)){
-	// 		printf("%s could not be identified.\n", cmd[0]);
-	// 		return;
-	// 	}
-	// 	if (runFromPath){
-	// 		cmd[0] = varPath;
-	// 	}
-	// 	// ---------------------------------------------------------------------------------
-
-	// 	#ifdef BACKPROC
-	// 	// check if the process needs to be run in the background --------------------------
-	// 	int procLen = 0;
-	// 	for (int i = 0; i < cmdLen; ++i){
-	// 		if (strcmp(cmd[i], "&") == 0){
-	// 			cmd[i] = (char*)NULL;
-	// 			runInBackground = true;
-	// 			procLen = i;
-	// 			break;
-	// 		}
-	// 	}
-
-	// 	char* proc[procLen+1];
-	// 	for (int i = 0; i < procLen; ++i){
-	// 		proc[i] = cmd[i];
-	// 	}
-	// 	proc[procLen] = (char*)NULL;
-	// 	// ----------------------------------------------------------------------------------
-	// 	#endif
-
-	// 	print_arr(cmd, cmdLen, "cmd");
-
-	// 	bool outToFile = false;
-	// 	char filename[FNAME_SIZE];
-	// 	for (int i = 0; i < cmdLen; ++i){
-	// 		if (strcmp(cmd[i], ">") == 0){
-	// 			// set filename here
-	// 			strcpy(filename, cmd[i+1]);
-	// 			outToFile = true;
-	// 			break;
-	// 		}
-	// 	}
-
-	// 	pid_t pid = fork();
-	// 	if (pid == 0){
-	// 		if (runInBackground){
-	// 			#ifdef BACKPROC
-	// 			// TODO
-	// 			// run_child_bg(cmd, cmdLen);
-	// 			printf("running job in background\n");
-	// 			int fd = open("tmp.txt", O_RDONLY, 0);
-	// 			dup2(fd, STDOUT_FILENO);
-	// 			close(0);
-	// 			if (execve(proc[0], proc, NULL) == -1){
-	// 				perror("execve from PATH");
-	// 			}
-	// 			#endif
-	// 		}
-	// 		else{
-	// 			if (outToFile){
-	// 				printf("outputting to file...\n");
-	// 				fd  = open(filename, O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-	// 				if (fd == -1){
-	// 					perror("open");
-	// 					return;
-	// 				}
-	// 				write(fd, "Hello world of dragons!\n", strlen("Hello world of dragons!\n"));
-	// 			}
-	// 			else{
-	// 				if (execve(cmd[0], cmd, NULL) == -1){
-	// 					perror("execve");
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-
-	// 	else if (pid > 0){
-	// 		waitpid(pid, NULL, 0);
-	// 		if (fd){
-	// 			close(fd);
-	// 		}
-	// 	}
-	// 	else{
-	// 		printf("Child process could not be created.\n");
-	// 	}
-	// }
 }
+
+// signal handling ----------------------------------------------------------------
+void sigint_handler(int signum){
+	// send sigint to child processes
+	/*
+	for (auto it : childProcesses){
+		if (it.second){
+			printf("sending SIGINT to %d...\n", it.first);
+			if (kill(it.first, SIGINT) == -1){
+				perror("kill");
+			}
+		}
+	}
+	*/
+}
+
+void sigtstp_handler(int signum){
+
+}
+// --------------------------------------------------------------------------------
 
 int main(int argc, char **argv) {
 	// print the string prompt without a newline, before beginning to read
@@ -401,11 +344,24 @@ int main(int argc, char **argv) {
 	char 	cmd	[MAX_LEN];
 	char* 	jobs[MAX_JOBS];
 	char 	env	[ENV_LEN * FNAME_SIZE];
+	struct sigaction sa_int, sa_tstp;
+	sa_int.sa_flags = 0;
+	sigemptyset(&sa_int.sa_mask);
+	sa_int.sa_handler = sigint_handler;
+
+	sa_tstp.sa_flags = 0;
+	sigemptyset(&sa_tstp.sa_mask);
+	sa_tstp.sa_handler = sigtstp_handler;
 
 	update_path(env, "/usr/bin/", true);
 	update_path(env, "/bin/", false);
-
 	display_splash();
+
+	// handle signals here
+	if (sigaction(SIGINT, &sa_int, NULL) == -1 or sigaction(SIGTSTP, &sa_tstp, NULL) == -1){
+		perror("sigaction");
+	}
+
 	while (1){
 		
 		#ifdef beta
@@ -414,6 +370,10 @@ int main(int argc, char **argv) {
 			printf("dragonshell [%d]: > ", getpid());
 		#endif
 
+		// for (auto it : childProcesses){
+		// 	printf("child %d\n", it.first);
+		// }
+
 		fgets(cmd, MAX_LEN, stdin);
 		tokenize(cmd, "\n", jobs);
 		int numJobs = tokenize(cmd, ";", jobs);
@@ -421,6 +381,7 @@ int main(int argc, char **argv) {
 			run_cmd(jobs[i], env);
 		}
 	}
+	// childProcesses.clear();
 
 	return 0;
 }
