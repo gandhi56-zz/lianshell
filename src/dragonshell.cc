@@ -8,6 +8,11 @@
 #define FNAME_SIZE		32
 #define getmin(a,b) 	((a)<(b)?(a):(b))
 
+// error codes
+#define VALID_INSTR		0
+#define E_REDIR			1
+#define E_PIPE			1<<1
+
 #include <map>
 #include <string.h>
 #include <stdlib.h>
@@ -214,13 +219,13 @@ void output_redirection(char* arg, char* env){
 }
 
 void run_pipe(char* arg, char* env){
-	printf("piping... %s\n", arg);
+	// printf("piping... %s\n", arg);
 	bool runInBackground = (bool)(strchr(arg, '&') != NULL);
 	char* cmd[NUM_ARGS];
 	int cmdLen = tokenize(arg, "|", cmd);
 	cmd[cmdLen] = NULL;
 
-	print_arr(cmd, cmdLen, "cmd");
+	// print_arr(cmd, cmdLen, "cmd");
 
 	// parse and check if process1 exists
 	char* process1[strlen(cmd[0])];
@@ -232,7 +237,7 @@ void run_pipe(char* arg, char* env){
 	}
 	process1[0] = varPath;
 	process1[processLen1] = NULL;
-	print_arr(process1, processLen1, "process1");
+	// print_arr(process1, processLen1, "process1");
 
 	// parse and check if process2 exists
 	char* process2[strlen(cmd[1])];
@@ -247,7 +252,7 @@ void run_pipe(char* arg, char* env){
 	// get rid of '&'
 	if (runInBackground)
 		process2[processLen2-1] = NULL;
-	print_arr(process2, processLen2, "process2");
+	// print_arr(process2, processLen2, "process2");
 
 	// create a pipe
 	int fd[2];
@@ -268,42 +273,24 @@ void run_pipe(char* arg, char* env){
 	else if (pid > 0){
 		close(fd[1]);
 		waitpid(pid, NULL, 0);
-		printf("done executinng process1 %d\n", pid);
+		// printf("done executinng process1 %d\n", pid);
 		pid1 = fork();
 		if (pid1 == 0){
-			print_arr(process2, processLen2, "process2");
+			// print_arr(process2, processLen2, "process2");
 			dup2(fd[0], STDIN_FILENO);
 			execve(process2[0], process2, NULL);
 		}
 		else if (pid1 > 0){
-			printf("starting process2 %d\n", pid1);
+			// printf("starting process2 %d\n", pid1);
 			waitpid(pid1, NULL, 0);
-			printf("done both processes\n");
+			// printf("done both processes\n");
 		}
 	}
 	else{
 		printf("Child process could not be created.\n");
 	}
-	printf("back to pavilion\n");
+	// printf("back to pavilion\n");
 
-/*
-	int fd[2];
-	char str[] = "hello, world 1234\n";
-	char readBuffer[100];
-	pipe(fd);
-	pid_t pid = fork();
-    if (pid == 0){
-        // child process
-        close(fd[0]);
-        write(fd[1], str, (strlen(str)+1));
-        _exit(0);
-    }
-    else{
-        close(fd[1]);
-        int nbytes = read(fd[0], readBuffer, sizeof(readBuffer));
-        printf("received: %s", readBuffer);
-    }
-*/
 }
 
 void run_process(char* cmd[NUM_ARGS], int cmdLen, char* env){
@@ -399,6 +386,32 @@ void run_cmd(char* arg, char* env){
 	}
 }
 
+void strip_newline(char* arg, int len){
+	int i = 0;
+	while (i < len and arg[i] != '\n')
+		i++;
+	if (i < len)
+		arg[i] = (char)NULL;
+}
+
+int cmd_ok(char* job, int jobLen){
+	// printf("checking job:%s\n", job);
+	char* args[NUM_ARGS];
+	int argsLen = tokenize(job, " ", args);
+	// print_arr(args, argsLen, "args");
+
+	for (int i =0 ; i < argsLen; ++i){
+		if (strcmp(args[i], ">") == 0 and (i == argsLen-1)){
+			return E_REDIR;
+		}
+		else if (strcmp(args[i], "|") == 0 and i == argsLen-1){
+			return E_PIPE;
+		}
+	}
+
+	return VALID_INSTR;
+}
+
 // signal handling ----------------------------------------------------------------
 void sigint_handler(int signum){
 	// send sigint to child processes
@@ -450,7 +463,20 @@ int main(int argc, char **argv) {
 		for (int i = 0; i < numJobs; ++i){
 			if (strcmp(jobs[i], "\n") == 0 or strcmp(jobs[i], " ") == 0)
 				continue;
-			run_cmd(jobs[i], env);
+			char currJob[NUM_ARGS];
+			strcpy(currJob, jobs[i]);
+			// printf("before %s\n", currJob);
+			int cmdStatus = cmd_ok(jobs[i], strlen(jobs[i]));
+			// printf("after %s\n", currJob);
+			// printf("status = %d\n", cmdStatus);
+			if (cmdStatus == E_REDIR or cmdStatus == E_PIPE){
+				char tmp[MAX_LEN];
+				fgets(tmp, MAX_LEN, stdin);
+				strip_newline(tmp, strlen(tmp));
+				strcat(currJob, tmp);
+				// printf("after %s\n", currJob);
+			}
+			run_cmd(currJob, env);
 		}
 		// printf("childPid = %d\n", childPid);
 	}

@@ -9,6 +9,7 @@ AnshEll is a UNIX-based shell program that supports the following features:
 3. Sequential execution of multiple processes.
 4. Redirection of output from a process to a file.
 5. Run processes in the background.
+6. Grammar checks for output redirection and pipe instructions.
 
 ## Issues
 2. Implement piping of output from one program to another.
