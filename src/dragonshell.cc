@@ -135,39 +135,6 @@ void update_path(char* env, const char* var, bool overwrite){
 	}
 }
 
-void run_child_bg(char* cmd[NUM_ARGS], int& buffLen){
-	printf("Putting job %d in the background.\n", getpid());
-	// int cmdLen = 0;
-	// for (int i = 0; i < buffLen; ++i){
-	// 	cmdLen += strlen(cmd[i]);
-	// }
-
-	// char proc[cmdLen];
-	// int k =0 ;
-	// for (int i = 0; i < buffLen; ++i){
-	// 	strcpy(&proc[k], cmd[i]);
-	// }
-
-	// //close(STDIN_FILENO);
-	// //close(STDOUT_FILENO);
-	// //close(STDERR_FILENO);
-
-	// char* child[buffLen];
-	// for (int i =0 ; i < buffLen-1; ++i)
-	// 	child[i] = cmd[i];
-	// child[buffLen-1] = NULL;
-
-	// int x = open("/dev/null", O_RDWR);
-	// printf("%d\n", x);
-	// dup(x);
-	// dup(x);
-	// execvp(child[0], child);
-	// _exit(1);
-
-
-
-}
-
 void output_redirection(char* arg, char* env){
 	// check if this is a background process
 	bool runInBackground = (bool)(strchr(arg, '&') != NULL);
@@ -247,9 +214,79 @@ void output_redirection(char* arg, char* env){
 }
 
 void run_pipe(char* arg, char* env){
-	printf("piping...\n");
-	// check if this is a background process
+	printf("piping... %s\n", arg);
+	bool runInBackground = (bool)(strchr(arg, '&') != NULL);
+	char* cmd[NUM_ARGS];
+	int cmdLen = tokenize(arg, "|", cmd);
+	cmd[cmdLen] = NULL;
 
+	print_arr(cmd, cmdLen, "cmd");
+
+	// parse and check if process1 exists
+	char* process1[strlen(cmd[0])];
+	int processLen1 = tokenize(cmd[0], " ", process1);
+	char varPath[MAX_LEN];
+	if (!cmd_exists(process1[0], varPath, env)){
+		printf("%s: command not found in PATH during redirection\n", cmd[0]);
+		return;
+	}
+	process1[0] = varPath;
+	process1[processLen1] = NULL;
+	print_arr(process1, processLen1, "process1");
+
+	// parse and check if process2 exists
+	char* process2[strlen(cmd[1])];
+	int processLen2 = tokenize(cmd[1], " ", process2);
+	if (!cmd_exists(process2[0], varPath, env)){
+		printf("%s: command not found in PATH during redirection\n", cmd[1]);
+		return;
+	}
+	process2[0] = varPath;
+	process2[processLen2] = NULL;
+
+	// get rid of '&'
+	if (runInBackground)
+		process2[processLen2-1] = NULL;
+	print_arr(process2, processLen2, "process2");
+
+	// create a pipe
+	int fd[2];
+	if (pipe(fd) == -1){
+		perror("pipe");
+		return;
+	}
+
+	// run processes
+	pid_t pid = fork();
+	pid_t pid1;
+	if (pid == 0){
+		close(fd[0]);
+		dup2(fd[1], STDOUT_FILENO);
+		execve(process1[0], process1, NULL);
+		perror("execve");
+	}
+	else if (pid > 0){
+		close(fd[1]);
+		waitpid(pid, NULL, 0);
+		printf("done executinng process1 %d\n", pid);
+		pid1 = fork();
+		if (pid1 == 0){
+			print_arr(process2, processLen2, "process2");
+			dup2(fd[0], STDIN_FILENO);
+			execve(process2[0], process2, NULL);
+		}
+		else if (pid1 > 0){
+			printf("starting process2 %d\n", pid1);
+			waitpid(pid1, NULL, 0);
+			printf("done both processes\n");
+		}
+	}
+	else{
+		printf("Child process could not be created.\n");
+	}
+	printf("back to pavilion\n");
+
+/*
 	int fd[2];
 	char str[] = "hello, world 1234\n";
 	char readBuffer[100];
@@ -266,7 +303,7 @@ void run_pipe(char* arg, char* env){
         int nbytes = read(fd[0], readBuffer, sizeof(readBuffer));
         printf("received: %s", readBuffer);
     }
-
+*/
 }
 
 void run_process(char* cmd[NUM_ARGS], int cmdLen, char* env){
@@ -348,8 +385,6 @@ void run_cmd(char* arg, char* env){
 		else if (strcmp(cmd[0], "a2path") == 0){
 			char* args[ENV_LEN];
 			int argLen = tokenize(cmd[1], ":", args);
-			print_arr(cmd, cmdLen, "cmd");
-			print_arr(args, argLen, "args");
 			for (int i = 1; i < argLen; ++i){
 				update_path(env, args[i], strcmp(args[0], "$PATH"));
 			}
@@ -367,10 +402,11 @@ void run_cmd(char* arg, char* env){
 // signal handling ----------------------------------------------------------------
 void sigint_handler(int signum){
 	// send sigint to child processes
+	printf("\n");
 }
 
 void sigtstp_handler(int signum){
-
+	printf("\n");
 }
 // --------------------------------------------------------------------------------
 
