@@ -14,3 +14,8 @@ execve_example/myecho
 execve_example/myecho.c
 execve_example/script
 src/backup.txt
+a.txt
+hello.py
+src/pipe
+src/pipe.txt
+errors.log
