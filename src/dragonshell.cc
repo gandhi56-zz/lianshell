@@ -230,23 +230,24 @@ void run_pipe(char* arg, char* env){
 	// parse and check if process1 exists
 	char* process1[strlen(cmd[0])];
 	int processLen1 = tokenize(cmd[0], " ", process1);
-	char varPath[MAX_LEN];
-	if (!cmd_exists(process1[0], varPath, env)){
+	char varPath1[MAX_LEN];
+	if (!cmd_exists(process1[0], varPath1, env)){
 		printf("%s: command not found in PATH during redirection\n", cmd[0]);
 		return;
 	}
-	process1[0] = varPath;
+	process1[0] = varPath1;
 	process1[processLen1] = NULL;
 	// print_arr(process1, processLen1, "process1");
 
 	// parse and check if process2 exists
 	char* process2[strlen(cmd[1])];
 	int processLen2 = tokenize(cmd[1], " ", process2);
-	if (!cmd_exists(process2[0], varPath, env)){
+	char varPath2[MAX_LEN];
+	if (!cmd_exists(process2[0], varPath2, env)){
 		printf("%s: command not found in PATH during redirection\n", cmd[1]);
 		return;
 	}
-	process2[0] = varPath;
+	process2[0] = varPath2;
 	process2[processLen2] = NULL;
 
 	// get rid of '&'
@@ -262,27 +263,33 @@ void run_pipe(char* arg, char* env){
 	}
 
 	// run processes
-	pid_t pid = fork();
 	pid_t pid1;
-	if (pid == 0){
-		close(fd[0]);
-		dup2(fd[1], STDOUT_FILENO);
-		execve(process1[0], process1, NULL);
-		perror("execve");
-	}
-	else if (pid > 0){
+	pid_t pid2 = fork();
+	if (pid2 == 0){
 		close(fd[1]);
-		waitpid(pid, NULL, 0);
+		dup2(fd[0], STDIN_FILENO);
+		close(fd[0]);
+		// print_arr(process2, processLen2, "process2");
+		execve(process2[0], process2, NULL);
+		perror("execve");
+		_exit(0);
+	}
+	else if (pid2 > 0){
+		// close(fd[1]);
+		// waitpid(pid2, NULL, 0);
 		// printf("done executinng process1 %d\n", pid);
 		pid1 = fork();
 		if (pid1 == 0){
-			// print_arr(process2, processLen2, "process2");
-			dup2(fd[0], STDIN_FILENO);
-			execve(process2[0], process2, NULL);
+			// print_arr(process1, processLen1, "process1");
+			close(fd[0]);
+			dup2(fd[1], STDOUT_FILENO);
+			close(fd[1]);
+			execve(process1[0], process1, NULL);
+			_exit(0);
 		}
 		else if (pid1 > 0){
 			// printf("starting process2 %d\n", pid1);
-			waitpid(pid1, NULL, 0);
+			// waitpid(pid1, NULL, 0);
 			// printf("done both processes\n");
 		}
 	}
@@ -290,7 +297,10 @@ void run_pipe(char* arg, char* env){
 		printf("Child process could not be created.\n");
 	}
 	// printf("back to pavilion\n");
-
+	close(fd[0]);
+	close(fd[1]);
+	wait(NULL);
+	wait(NULL);
 }
 
 void run_process(char* cmd[NUM_ARGS], int cmdLen, char* env){
@@ -415,6 +425,7 @@ int cmd_ok(char* job, int jobLen){
 // signal handling ----------------------------------------------------------------
 void sigint_handler(int signum){
 	// send sigint to child processes
+	// printf("\n");
 	printf("\n");
 }
 
@@ -458,12 +469,13 @@ int main(int argc, char **argv) {
 
 		childPid = 0;
 		fgets(cmd, MAX_LEN, stdin);
+		// memset(jobs, 0, MAX_JOBS * sizeof(char));
 		tokenize(cmd, "\n", jobs);
 		int numJobs = tokenize(cmd, ";", jobs);
 		for (int i = 0; i < numJobs; ++i){
 			if (strcmp(jobs[i], "\n") == 0 or strcmp(jobs[i], " ") == 0)
 				continue;
-			char currJob[NUM_ARGS];
+			char currJob[NUM_ARGS] = {0};
 			strcpy(currJob, jobs[i]);
 			// printf("before %s\n", currJob);
 			int cmdStatus = cmd_ok(jobs[i], strlen(jobs[i]));
