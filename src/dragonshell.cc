@@ -12,8 +12,10 @@
 #define VALID_INSTR		0
 #define E_REDIR			1
 #define E_PIPE			1<<1
+#define BAD_CMD			(1<<1)|1
 
-#include <map>
+#include <iostream>	// for cin.eof
+#include <vector>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>	// system calls
@@ -25,7 +27,8 @@
 #include <signal.h>
 
 // global variables
-pid_t childPid = 0;
+std::vector<pid_t> subProcs;
+bool handling_signal;
 
 void display_splash(){
 	printf("                                   ______________                                           					\n");
@@ -53,6 +56,15 @@ void display_splash(){
 	printf("																												\n");
 }
 
+void terminate_program(){
+	printf("\nExiting\n");
+	for (auto pid : subProcs){
+		kill(pid, SIGTERM);
+	}
+	subProcs.clear();
+	_exit(0);
+}
+
 void print_arr(char* arr[], int cmdLen, const char* cap){
 	printf("-------------\n");
 	for (int i =0 ; i < cmdLen; ++i){
@@ -62,13 +74,9 @@ void print_arr(char* arr[], int cmdLen, const char* cap){
 }
 
 bool cmd_exists(const char* cmd, char* varPath, char* path){
-	/*
-		TODO use tokenize instead, more efficient
-	*/
 	if (!path)
 		return false;
 	if(strchr(cmd, '/')) {
-		// if cmd starts with a '/', run access directly
         return access(cmd, X_OK)==0;
     }
 
@@ -167,6 +175,7 @@ void output_redirection(char* arg, char* env){
 
 	if (runInBackground){
 		pid_t pid = fork();
+		subProcs.push_back(pid);
 		if (pid == 0){
 			// strip whitespaces from the left
 			int i = 0;
@@ -184,6 +193,7 @@ void output_redirection(char* arg, char* env){
 			close(fd);
 		}
 		else if (pid > 0){
+			printf("PID %d is running in the background\n", pid);
 			waitpid(pid, NULL, 0);
 		}
 		else{
@@ -192,12 +202,13 @@ void output_redirection(char* arg, char* env){
 	}
 	else{
 		pid_t pid = fork();
+		subProcs.push_back(pid);
 		if (pid == 0){
 			// strip whitespaces from the left
 			int i = 0;
 			while (cmd[1][i] == ' ')	i++;
 			char fname[strlen(cmd[1]) - i + 1];
-			for (int k = 0; k < strlen(cmd[1])-i; ++k){
+			for (unsigned int k = 0; k < strlen(cmd[1])-i; ++k){
 				fname[k] = cmd[1][k+i];
 			}
 			fname[strlen(cmd[1]) - i] = (char)NULL;
@@ -262,55 +273,111 @@ void run_pipe(char* arg, char* env){
 		return;
 	}
 
-	// run processes
-	pid_t pid1;
-	pid_t pid2 = fork();
-	if (pid2 == 0){
-		close(fd[1]);
-		dup2(fd[0], STDIN_FILENO);
-		close(fd[0]);
-		// print_arr(process2, processLen2, "process2");
-		execve(process2[0], process2, NULL);
-		perror("execve");
-		_exit(0);
-	}
-	else if (pid2 > 0){
-		// close(fd[1]);
-		// waitpid(pid2, NULL, 0);
-		// printf("done executinng process1 %d\n", pid);
-		pid1 = fork();
-		if (pid1 == 0){
-			// print_arr(process1, processLen1, "process1");
-			close(fd[0]);
-			dup2(fd[1], STDOUT_FILENO);
+	if (runInBackground){
+
+		// run processes
+		pid_t pid1;
+		pid_t pid2 = fork();
+		subProcs.push_back(pid2);
+		if (pid2 == 0){
+			// close(STDOUT_FILENO);
 			close(fd[1]);
-			execve(process1[0], process1, NULL);
+			dup2(fd[0], STDIN_FILENO);
+			close(fd[0]);
+
+			close(STDOUT_FILENO);
+
+			// print_arr(process2, processLen2, "process2");
+			execve(process2[0], process2, NULL);
+			perror("execve");
 			_exit(0);
 		}
-		else if (pid1 > 0){
-			// printf("starting process2 %d\n", pid1);
-			// waitpid(pid1, NULL, 0);
-			// printf("done both processes\n");
+		else if (pid2 > 0){
+			// close(fd[1]);
+			// waitpid(pid2, NULL, 0);
+			// printf("done executinng process1 %d\n", pid);
+			pid1 = fork();
+			subProcs.push_back(pid1);
+			if (pid1 == 0){
+				// print_arr(process1, processLen1, "process1");
+				close(fd[0]);
+				dup2(fd[1], STDOUT_FILENO);
+				close(fd[1]);
+				execve(process1[0], process1, NULL);
+				_exit(0);
+			}
+			else if (pid1 > 0){
+				// printf("starting process2 %d\n", pid1);
+				// waitpid(pid1, NULL, 0);
+				// printf("done both processes\n");
+			}
 		}
+		else{
+			printf("Child process could not be created.\n");
+		}
+		// printf("back to pavilion\n");
+		close(fd[0]);
+		close(fd[1]);
+		// wait(NULL);
+		// wait(NULL);
 	}
 	else{
-		printf("Child process could not be created.\n");
+		// run processes
+		pid_t pid1;
+		pid_t pid2 = fork();
+		subProcs.push_back(pid2);
+		if (pid2 == 0){
+			close(fd[1]);
+			dup2(fd[0], STDIN_FILENO);
+			close(fd[0]);
+			// print_arr(process2, processLen2, "process2");
+			execve(process2[0], process2, NULL);
+			perror("execve");
+			_exit(0);
+		}
+		else if (pid2 > 0){
+			// close(fd[1]);
+			// waitpid(pid2, NULL, 0);
+			// printf("done executinng process1 %d\n", pid);
+			pid1 = fork();
+			subProcs.push_back(pid1);
+			if (pid1 == 0){
+				// print_arr(process1, processLen1, "process1");
+				close(fd[0]);
+				dup2(fd[1], STDOUT_FILENO);
+				close(fd[1]);
+				execve(process1[0], process1, NULL);
+				_exit(0);
+			}
+			else if (pid1 > 0){
+				// printf("starting process2 %d\n", pid1);
+				// waitpid(pid1, NULL, 0);
+				// printf("done both processes\n");
+			}
+		}
+		else{
+			printf("Child process could not be created.\n");
+		}
+		// printf("back to pavilion\n");
+		close(fd[0]);
+		close(fd[1]);
+		wait(NULL);
+		wait(NULL);
 	}
-	// printf("back to pavilion\n");
-	close(fd[0]);
-	close(fd[1]);
-	wait(NULL);
-	wait(NULL);
 }
 
 void run_process(char* cmd[NUM_ARGS], int cmdLen, char* env){
 	// check if this command exists
-	char varPath[MAX_LEN];
-	if (!cmd_exists(cmd[0], varPath, env)){
-		printf("%s: command not found in PATH\n", cmd[0]);
-		return;
+	if (cmd[0][0] != '/'){
+		char varPath[MAX_LEN];
+		if (cmd_exists(cmd[0], varPath, env)){
+			cmd[0] = varPath;
+		}
+		else{
+			printf("%s: command not found.\n", cmd[0]);
+			return;
+		}
 	}
-	cmd[0] = varPath;
 
 	// check if this process will run in the background
 	bool runInBackground = false;
@@ -322,6 +389,7 @@ void run_process(char* cmd[NUM_ARGS], int cmdLen, char* env){
 	if (runInBackground){
 		// execute process
 		pid_t pid = fork();
+		subProcs.push_back(pid);
 		if (pid == 0){
 			close(STDOUT_FILENO);
 			close(STDERR_FILENO);
@@ -340,13 +408,14 @@ void run_process(char* cmd[NUM_ARGS], int cmdLen, char* env){
 	else{
 		// execute process
 		pid_t pid = fork();
+		subProcs.push_back(pid);
 		if (pid == 0){
+			// print_arr(cmd, cmdLen, "cmd");
 			if (execve(cmd[0], cmd, NULL) == -1){
 				perror("execve");
 			}
 		}
 		else if (pid > 0){
-			childPid = pid;
 			waitpid(pid, NULL, 0);
 		}
 		else{
@@ -387,10 +456,9 @@ void run_cmd(char* arg, char* env){
 			}
 		}
 		else if (strcmp(cmd[0], "exit") == 0){
-			printf("Thanks for using the dragonshell.\n");
-			_exit(0);
+			terminate_program();
 		}
-		else {
+		else if (!handling_signal){
 			run_process(cmd, cmdLen, env);
 		}
 	}
@@ -405,6 +473,17 @@ void strip_newline(char* arg, int len){
 }
 
 int cmd_ok(char* job, int jobLen){
+	// if (job[0] < 'a' or job[0] > 'z'){
+	// 	if (job[0] != '/' and job[0] != '.'){
+	// 		return BAD_CMD;
+	// 	}
+	// }
+	// for (int i = 0; i < jobLen; ++i){
+	// 	if (job[i] < 'a' or job[i] > 'z'){
+	// 		return BAD_CMD;
+	// 	}
+	// }
+
 	// printf("checking job:%s\n", job);
 	char* args[NUM_ARGS];
 	int argsLen = tokenize(job, " ", args);
@@ -423,15 +502,16 @@ int cmd_ok(char* job, int jobLen){
 }
 
 // signal handling ----------------------------------------------------------------
-void sigint_handler(int signum){
+void sigaction_handler(int signum){
 	// send sigint to child processes
-	// printf("\n");
 	printf("\n");
+	for (auto pid : subProcs){
+		kill(pid, signum);
+	}
+	subProcs.clear();
+	handling_signal = true;
 }
 
-void sigtstp_handler(int signum){
-	printf("\n");
-}
 // --------------------------------------------------------------------------------
 
 int main(int argc, char **argv) {
@@ -441,23 +521,21 @@ int main(int argc, char **argv) {
 	char 	cmd	[MAX_LEN];
 	char* 	jobs[MAX_JOBS];
 	char 	env	[ENV_LEN * FNAME_SIZE];
-	struct sigaction sa_int, sa_tstp;
+	struct sigaction sa_int;
 	sa_int.sa_flags = 0;
 	sigemptyset(&sa_int.sa_mask);
-	sa_int.sa_handler = sigint_handler;
-
-	sa_tstp.sa_flags = 0;
-	sigemptyset(&sa_tstp.sa_mask);
-	sa_tstp.sa_handler = sigtstp_handler;
+	sa_int.sa_handler = sigaction_handler;
 
 	update_path(env, "/usr/bin/", true);
 	update_path(env, "/bin/", false);
 	display_splash();
 
 	// handle signals here
-	if (sigaction(SIGINT, &sa_int, NULL) == -1 or sigaction(SIGTSTP, &sa_tstp, NULL) == -1){
+	if (sigaction(SIGINT, &sa_int, NULL) == -1 or sigaction(SIGTSTP, &sa_int, NULL) == -1){
 		perror("sigaction");
 	}
+
+	handling_signal = false;
 
 	while (1){
 		
@@ -467,10 +545,16 @@ int main(int argc, char **argv) {
 			printf("dragonshell [%d]: > ", getpid());
 		#endif
 
-		childPid = 0;
+		handling_signal = false;
+
 		fgets(cmd, MAX_LEN, stdin);
+		if (feof(stdin)){
+			terminate_program();
+		}
+
 		// memset(jobs, 0, MAX_JOBS * sizeof(char));
 		tokenize(cmd, "\n", jobs);
+
 		int numJobs = tokenize(cmd, ";", jobs);
 		for (int i = 0; i < numJobs; ++i){
 			if (strcmp(jobs[i], "\n") == 0 or strcmp(jobs[i], " ") == 0)
@@ -488,10 +572,14 @@ int main(int argc, char **argv) {
 				strcat(currJob, tmp);
 				// printf("after %s\n", currJob);
 			}
+			// else if (cmdStatus == BAD_CMD){
+			// 	continue;
+			// }
 			run_cmd(currJob, env);
 		}
-		// printf("childPid = %d\n", childPid);
 	}
+
+	subProcs.clear();
 
 	return 0;
 }
