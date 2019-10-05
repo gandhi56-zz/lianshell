@@ -57,7 +57,7 @@ void display_splash(){
 }
 
 void terminate_program(){
-	printf("\nExiting\n");
+	printf("Exiting\n");
 	for (auto pid : subProcs){
 		kill(pid, SIGTERM);
 	}
@@ -125,11 +125,11 @@ int tokenize(char* str, const char* delim, char ** argv) {
 
 void change_dir(char* cmd[NUM_ARGS], int& buffLen){
 	if (buffLen < 2){
-		perror("expected argument to chdir");
+		printf("dragonshell: expected argument to \"cd\"\n");
 		return;
 	}
 	if (chdir(cmd[1]) == -1){
-		perror("unable to run chdir");
+		printf("dragonshell: No such file or directory\n");
 	}
 }
 
@@ -374,7 +374,7 @@ void run_process(char* cmd[NUM_ARGS], int cmdLen, char* env){
 			cmd[0] = varPath;
 		}
 		else{
-			printf("%s: command not found.\n", cmd[0]);
+			printf("%s: Command not found\n", cmd[0]);
 			return;
 		}
 	}
@@ -526,8 +526,8 @@ int main(int argc, char **argv) {
 	sigemptyset(&sa_int.sa_mask);
 	sa_int.sa_handler = sigaction_handler;
 
-	update_path(env, "/usr/bin/", true);
-	update_path(env, "/bin/", false);
+	update_path(env, "/bin/", true);
+	update_path(env, "/usr/bin/", false);
 	display_splash();
 
 	// handle signals here
@@ -542,13 +542,14 @@ int main(int argc, char **argv) {
 		#ifdef beta
 			printf("dragonshell: %s > ", get_current_dir_name());
 		#else
-			printf("dragonshell [%d]: > ", getpid());
+			printf("dragonshell > ");
 		#endif
 
 		handling_signal = false;
 
 		fgets(cmd, MAX_LEN, stdin);
 		if (feof(stdin)){
+			printf("\n");
 			terminate_program();
 		}
 
