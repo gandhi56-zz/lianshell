@@ -20,4 +20,4 @@ clean:
 	@rm -rf $(OBJECTS)
 
 compress:
-	tar -caf dragonshell.tar.gz $(SOURCES)
+	tar -caf dragonshell.tar.gz $(SOURCES) Makefile README.md
