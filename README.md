@@ -1,6 +1,6 @@
 # LiAnshEll
 
-![img/lianshell.png]
+![](img/lianshell.png)
 
 ## Project description
 LiAnshEll is a standalone procedurally designed UNIX-based shell program that supports the following features:
