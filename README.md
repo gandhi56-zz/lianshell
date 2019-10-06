@@ -1,5 +1,7 @@
 # LiAnshEll
 
+![img/lianshell.png]
+
 ## Project description
 LiAnshEll is a standalone procedurally designed UNIX-based shell program that supports the following features:
 1. Support for built-in commands including:
