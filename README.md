@@ -1,9 +1,9 @@
-# LiAnshEll
+# lianshell
 
 ![](img/lianshell.png)
 
 ## Project description
-LiAnshEll is a standalone procedurally designed UNIX-based shell program that supports the following features:
+lianshell is a standalone procedurally designed UNIX-based shell program that supports the following features:
 1. Support for built-in commands including:
     * changing working directory
     * modifying environment variables
@@ -33,7 +33,7 @@ LiAnshEll is a standalone procedurally designed UNIX-based shell program that su
 * kill()    :   send a signal to a process
 
 ## Testing procedure
-LiAnshEll was tested by running various commands individually as well as in combination with other commands. Valgrind was used to test for memory leaks in the heap and stack memory. htop and pstree were also used to maintain subprocess construction and destruction.
+lianshell was tested by running various commands individually as well as in combination with other commands. Valgrind was used to test for memory leaks in the heap and stack memory. htop and pstree were also used to maintain subprocess construction and destruction.
 
 ## References
 * StackOverFlow
