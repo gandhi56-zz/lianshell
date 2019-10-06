@@ -1,7 +1,7 @@
-# AnshEll
+# LiAnshEll
 
 ## Project description
-AnshEll is a standalone procedurally designed UNIX-based shell program that supports the following features:
+LiAnshEll is a standalone procedurally designed UNIX-based shell program that supports the following features:
 1. Support for built-in commands including:
     * changing working directory
     * modifying environment variables
@@ -31,7 +31,7 @@ AnshEll is a standalone procedurally designed UNIX-based shell program that supp
 * kill()    :   send a signal to a process
 
 ## Testing procedure
-Dragonshell was tested by running various commands individually as well as in combination with other commands. Valgrind was used to test for memory leaks in the heap and stack memory. htop and pstree were also used to maintain subprocess construction and destruction.
+LiAnshEll was tested by running various commands individually as well as in combination with other commands. Valgrind was used to test for memory leaks in the heap and stack memory. htop and pstree were also used to maintain subprocess construction and destruction.
 
 ## References
 * StackOverFlow
